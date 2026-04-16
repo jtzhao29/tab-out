@@ -29,6 +29,20 @@
   </header>
 
   <!-- ================================================================
+       FAVORITES — local custom shortcuts stored in chrome.storage.local
+       ================================================================ -->
+  <section class="favorites-shelf" id="favoritesShelf" aria-label="Favorite pages">
+    <div class="favorites-shelf-header">
+      <div>
+        <h2>Favorites</h2>
+        <p>Keep your daily pages one click away.</p>
+      </div>
+      <button class="favorites-add-btn" type="button" data-action="open-favorite-editor">Add favorite</button>
+    </div>
+    <div class="favorites-grid" id="favoritesGrid"></div>
+  </section>
+
+  <!-- ================================================================
        TAB OUT DUPES BANNER — appears when you have extra Tab Out tabs open
        Hidden by default; app.js shows it when dupeTabOutCount > 1
        ================================================================ -->
@@ -112,6 +126,43 @@
   </footer>
 
 </div><!-- end .container -->
+
+<!-- ================================================================
+     FAVORITE EDITOR — add/edit local favorite websites
+     ================================================================ -->
+<div class="favorite-editor-backdrop" id="favoriteEditorBackdrop" hidden aria-hidden="true">
+  <form class="favorite-editor" id="favoriteEditor" aria-labelledby="favoriteEditorTitle" novalidate>
+    <div class="favorite-editor-head">
+      <h2 id="favoriteEditorTitle">Add favorite</h2>
+      <button class="favorite-icon-button" type="button" data-action="close-favorite-editor" aria-label="Close favorite editor">&times;</button>
+    </div>
+
+    <label class="favorite-field" for="favoriteTitleInput">
+      Title
+      <input id="favoriteTitleInput" type="text" autocomplete="off" placeholder="GitHub">
+    </label>
+
+    <label class="favorite-field" for="favoriteUrlInput">
+      URL
+      <input id="favoriteUrlInput" type="url" autocomplete="url" placeholder="https://github.com">
+    </label>
+
+    <label class="favorite-field" for="favoriteColorInput">
+      Accent color
+      <input id="favoriteColorInput" type="text" inputmode="text" autocomplete="off" placeholder="Auto or #5a7a62">
+    </label>
+
+    <div class="favorite-editor-error" id="favoriteEditorError" role="alert"></div>
+
+    <div class="favorite-editor-actions">
+      <button class="favorite-submit" id="favoriteSubmitButton" type="submit">Add favorite</button>
+      <div class="favorite-secondary-actions">
+        <button class="favorite-delete" id="favoriteDeleteButton" type="button" data-action="delete-favorite" hidden>Delete</button>
+        <button class="favorite-cancel" type="button" data-action="close-favorite-editor">Cancel</button>
+      </div>
+    </div>
+  </form>
+</div>
 
 <!-- ================================================================
      TOAST — floats above everything, used for action confirmations

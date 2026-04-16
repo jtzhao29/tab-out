@@ -50,6 +50,30 @@
     assert('favorite title defaults to hostname', favorite.title === 'github.com');
     assert('favorite hostname set', favorite.hostname === 'github.com');
     assert('favorite color inferred', favorite.accentColor === '#24292f');
+    const fallbackFavorite = TabOutFavorites.normalizeFavoriteInput({ title: 'Docs', url: 'https://example.com/docs', accentColor: 'blue' });
+    assert('favorite invalid color falls back', fallbackFavorite.accentColor === TabOutShared.inferAccentColor('example.com'));
+
+    window.__tabOutDevStorage.favorites = [];
+    const savedFavorite = await TabOutFavorites.saveFavorite({ title: '  GitHub  ', url: 'github.com', accentColor: '#123abc' });
+    assert('favorite saved with trimmed title', savedFavorite.title === 'GitHub');
+    assert('favorite saved to storage', window.__tabOutDevStorage.favorites.length === 1);
+    assert('favorite createdAt set', Boolean(savedFavorite.createdAt));
+
+    const editedFavorite = await TabOutFavorites.saveFavorite({ id: savedFavorite.id, title: '', url: 'https://docs.github.com', accentColor: '#abcdef' });
+    assert('favorite edit preserves createdAt', editedFavorite.createdAt === savedFavorite.createdAt);
+    assert('favorite edit updates hostname', editedFavorite.hostname === 'docs.github.com');
+    assert('favorite edit updates updatedAt', Boolean(editedFavorite.updatedAt));
+    assert('favorite edit keeps one storage row', window.__tabOutDevStorage.favorites.length === 1);
+
+    const favoriteGrid = document.createElement('div');
+    favoriteGrid.id = 'favoritesGrid';
+    document.body.appendChild(favoriteGrid);
+    await TabOutFavorites.renderFavorites();
+    assert('favorites render link', Boolean(favoriteGrid.querySelector('a[href="https://docs.github.com/"]')));
+    assert('favorites render edit action', Boolean(favoriteGrid.querySelector('[data-action="edit-favorite"]')));
+
+    await TabOutFavorites.removeFavorite(savedFavorite.id);
+    assert('favorite removed from storage', window.__tabOutDevStorage.favorites.length === 0);
 
     await TabOutTasks.ensureStarterTags();
     const tags = await TabOutTasks.getTaskTags();

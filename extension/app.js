@@ -1026,6 +1026,12 @@ async function renderStaticDashboard() {
   if (greetingEl) greetingEl.textContent = getGreeting();
   if (dateEl)     dateEl.textContent     = getDateDisplay();
 
+  try {
+    if (window.TabOutFavorites) await window.TabOutFavorites.renderFavorites();
+  } catch (err) {
+    console.warn('[tab-out] Favorites render failed:', err);
+  }
+
   // --- Fetch tabs ---
   await fetchOpenTabs();
   const realTabs = getRealTabs();
@@ -1187,6 +1193,8 @@ document.addEventListener('click', async (e) => {
   if (!actionEl) return;
 
   const action = actionEl.dataset.action;
+
+  if (window.TabOutFavorites && await window.TabOutFavorites.handleFavoriteAction(actionEl)) return;
 
   // ---- Close duplicate Tab Out tabs ----
   if (action === 'close-tabout-dupes') {
@@ -1479,4 +1487,11 @@ document.addEventListener('input', async (e) => {
 /* ----------------------------------------------------------------
    INITIALIZE
    ---------------------------------------------------------------- */
-renderDashboard();
+(async function initDashboard() {
+  try {
+    if (window.TabOutFavorites) window.TabOutFavorites.initFavorites();
+  } catch (err) {
+    console.warn('[tab-out] Favorites init failed:', err);
+  }
+  await renderDashboard();
+})();
