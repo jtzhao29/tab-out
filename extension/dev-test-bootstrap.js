@@ -2,8 +2,10 @@
 
 (function installDevTestChromeMocks() {
   const storageData = {};
+  const storageListeners = [];
 
   window.__tabOutDevStorage = storageData;
+  window.__tabOutStorageListeners = storageListeners;
   window.chrome = window.chrome || {};
   chrome.storage = {
     local: {
@@ -16,6 +18,11 @@
       },
       async set(values) {
         Object.assign(storageData, values);
+      },
+    },
+    onChanged: {
+      addListener(listener) {
+        storageListeners.push(listener);
       },
     },
   };

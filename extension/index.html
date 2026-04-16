@@ -130,8 +130,8 @@
 <!-- ================================================================
      FAVORITE EDITOR — add/edit local favorite websites
      ================================================================ -->
-<div class="favorite-editor-backdrop" id="favoriteEditorBackdrop" hidden aria-hidden="true">
-  <form class="favorite-editor" id="favoriteEditor" aria-labelledby="favoriteEditorTitle" novalidate>
+<div class="favorite-editor-backdrop" id="favoriteEditorBackdrop" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="favoriteEditorTitle">
+  <form class="favorite-editor" id="favoriteEditor" novalidate>
     <div class="favorite-editor-head">
       <h2 id="favoriteEditorTitle">Add favorite</h2>
       <button class="favorite-icon-button" type="button" data-action="close-favorite-editor" aria-label="Close favorite editor">&times;</button>
@@ -178,7 +178,7 @@
 
 <!-- Personal config (gitignored) — defines LOCAL_LANDING_PAGE_PATTERNS etc. -->
 <!-- If the file doesn't exist, that's fine — app.js uses sensible defaults. -->
-<script src="config.local.js" onerror="/* no personal config, that's fine */"></script>
+<script src="config.local.js"></script>
 
 <script src="shared.js"></script>
 <script src="favorites.js"></script>

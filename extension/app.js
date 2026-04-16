@@ -763,14 +763,15 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}) {
     const count    = urlCounts[tab.url] || 1;
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const chipClass = count > 1 ? ' chip-has-dupes' : '';
-    const safeUrl   = (tab.url || '').replace(/"/g, '&quot;');
-    const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const safeUrl   = TabOutShared.escapeHtml(tab.url || '');
+    const safeTitle = TabOutShared.escapeHtml(label);
+    const safeLabel = TabOutShared.escapeHtml(label);
+    let faviconUrl = '';
+    try { faviconUrl = TabOutShared.faviconUrl(tab.url, 16); } catch {}
+    const safeFaviconUrl = TabOutShared.escapeHtml(faviconUrl);
     return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
-      <span class="chip-text">${label}</span>${dupeTag}
+      ${safeFaviconUrl ? `<img class="chip-favicon" src="${safeFaviconUrl}" alt="">` : ''}
+      <span class="chip-text">${safeLabel}</span>${dupeTag}
       <div class="chip-actions">
         <button class="chip-action chip-save" data-action="defer-single-tab" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="Save for later">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
@@ -844,14 +845,15 @@ function renderDomainCard(group) {
     const count    = urlCounts[tab.url];
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const chipClass = count > 1 ? ' chip-has-dupes' : '';
-    const safeUrl   = (tab.url || '').replace(/"/g, '&quot;');
-    const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const safeUrl   = TabOutShared.escapeHtml(tab.url || '');
+    const safeTitle = TabOutShared.escapeHtml(label);
+    const safeLabel = TabOutShared.escapeHtml(label);
+    let faviconUrl = '';
+    try { faviconUrl = TabOutShared.faviconUrl(tab.url, 16); } catch {}
+    const safeFaviconUrl = TabOutShared.escapeHtml(faviconUrl);
     return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
-      <span class="chip-text">${label}</span>${dupeTag}
+      ${safeFaviconUrl ? `<img class="chip-favicon" src="${safeFaviconUrl}" alt="">` : ''}
+      <span class="chip-text">${safeLabel}</span>${dupeTag}
       <div class="chip-actions">
         <button class="chip-action chip-save" data-action="defer-single-tab" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="Save for later">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
@@ -966,22 +968,29 @@ async function renderDeferredColumn() {
 function renderDeferredItem(item) {
   let domain = '';
   try { domain = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
-  const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
-  const ago = timeAgo(item.savedAt);
+  let faviconUrl = '';
+  try { faviconUrl = TabOutShared.faviconUrl(item.url, 16); } catch {}
+  const title = item.title || item.url || '';
+  const safeId = TabOutShared.escapeHtml(item.id);
+  const safeUrl = TabOutShared.escapeHtml(item.url || '');
+  const safeTitle = TabOutShared.escapeHtml(title);
+  const safeDomain = TabOutShared.escapeHtml(domain);
+  const safeAgo = TabOutShared.escapeHtml(timeAgo(item.savedAt));
+  const safeFaviconUrl = TabOutShared.escapeHtml(faviconUrl);
 
   return `
-    <div class="deferred-item" data-deferred-id="${item.id}">
-      <input type="checkbox" class="deferred-checkbox" data-action="check-deferred" data-deferred-id="${item.id}">
+    <div class="deferred-item" data-deferred-id="${safeId}">
+      <input type="checkbox" class="deferred-checkbox" data-action="check-deferred" data-deferred-id="${safeId}">
       <div class="deferred-info">
-        <a href="${item.url}" target="_blank" rel="noopener" class="deferred-title" title="${(item.title || '').replace(/"/g, '&quot;')}">
-          <img src="${faviconUrl}" alt="" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px" onerror="this.style.display='none'">${item.title || item.url}
+        <a href="${safeUrl}" target="_blank" rel="noopener" class="deferred-title" title="${safeTitle}">
+          ${safeFaviconUrl ? `<img class="deferred-favicon" src="${safeFaviconUrl}" alt="">` : ''}${safeTitle}
         </a>
         <div class="deferred-meta">
-          <span>${domain}</span>
-          <span>${ago}</span>
+          <span>${safeDomain}</span>
+          <span>${safeAgo}</span>
         </div>
       </div>
-      <button class="deferred-dismiss" data-action="dismiss-deferred" data-deferred-id="${item.id}" title="Dismiss">
+      <button class="deferred-dismiss" data-action="dismiss-deferred" data-deferred-id="${safeId}" title="Dismiss">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
       </button>
     </div>`;
@@ -993,13 +1002,16 @@ function renderDeferredItem(item) {
  * Builds HTML for one completed/archived item (simpler: just title + date).
  */
 function renderArchiveItem(item) {
-  const ago = item.completedAt ? timeAgo(item.completedAt) : timeAgo(item.savedAt);
+  const title = item.title || item.url || '';
+  const safeUrl = TabOutShared.escapeHtml(item.url || '');
+  const safeTitle = TabOutShared.escapeHtml(title);
+  const safeAgo = TabOutShared.escapeHtml(item.completedAt ? timeAgo(item.completedAt) : timeAgo(item.savedAt));
   return `
     <div class="archive-item">
-      <a href="${item.url}" target="_blank" rel="noopener" class="archive-item-title" title="${(item.title || '').replace(/"/g, '&quot;')}">
-        ${item.title || item.url}
+      <a href="${safeUrl}" target="_blank" rel="noopener" class="archive-item-title" title="${safeTitle}">
+        ${safeTitle}
       </a>
-      <span class="archive-item-date">${ago}</span>
+      <span class="archive-item-date">${safeAgo}</span>
     </div>`;
 }
 
@@ -1440,6 +1452,16 @@ document.addEventListener('click', async (e) => {
     return;
   }
 });
+
+document.addEventListener('error', (e) => {
+  const target = e.target;
+  if (
+    target instanceof HTMLImageElement &&
+    target.matches('.favorite-icon img, .deferred-favicon, .chip-favicon')
+  ) {
+    target.hidden = true;
+  }
+}, true);
 
 // ---- Archive toggle — expand/collapse the archive section ----
 document.addEventListener('click', (e) => {

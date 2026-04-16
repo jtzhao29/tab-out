@@ -71,9 +71,38 @@
     await TabOutFavorites.renderFavorites();
     assert('favorites render link', Boolean(favoriteGrid.querySelector('a[href="https://docs.github.com/"]')));
     assert('favorites render edit action', Boolean(favoriteGrid.querySelector('[data-action="edit-favorite"]')));
+    assert('favorites render avoids inline error handlers', !favoriteGrid.innerHTML.includes('onerror='));
 
-    await TabOutFavorites.removeFavorite(savedFavorite.id);
+    await assertThrows(
+      'favorite stale edit id rejected',
+      () => TabOutFavorites.saveFavorite({ id: 'missing-favorite', title: 'Missing', url: 'https://missing.example' }),
+      'Favorite no longer exists.'
+    );
+
+    const removedExistingFavorite = await TabOutFavorites.removeFavorite(savedFavorite.id);
+    assert('favorite remove reports existing deletion', removedExistingFavorite);
+
     assert('favorite removed from storage', window.__tabOutDevStorage.favorites.length === 0);
+    const removedMissingFavorite = await TabOutFavorites.removeFavorite(savedFavorite.id);
+    assert('favorite remove reports missing deletion', !removedMissingFavorite);
+
+    const modalBackdrop = document.createElement('div');
+    modalBackdrop.id = 'favoriteEditorBackdrop';
+    modalBackdrop.hidden = true;
+    modalBackdrop.setAttribute('role', 'dialog');
+    modalBackdrop.setAttribute('aria-modal', 'true');
+    modalBackdrop.setAttribute('aria-labelledby', 'favoriteEditorTitle');
+    document.body.appendChild(modalBackdrop);
+    assert('favorite modal has dialog role', modalBackdrop.attributes.role === 'dialog');
+    assert('favorite modal is aria modal', modalBackdrop.attributes['aria-modal'] === 'true');
+    assert('favorite modal is labelled', modalBackdrop.attributes['aria-labelledby'] === 'favoriteEditorTitle');
+    const modalForm = document.createElement('form');
+    modalForm.id = 'favoriteEditor';
+    document.body.appendChild(modalForm);
+    TabOutFavorites.initFavorites();
+    TabOutFavorites.initFavorites();
+    assert('favorite form init binds once', modalForm.dataset.favoritesBound === 'true');
+    assert('favorite storage listener binds once', window.__tabOutStorageListeners.length === 1);
 
     await TabOutTasks.ensureStarterTags();
     const tags = await TabOutTasks.getTaskTags();
