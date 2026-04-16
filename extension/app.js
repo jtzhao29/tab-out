@@ -1509,11 +1509,15 @@ document.addEventListener('input', async (e) => {
 /* ----------------------------------------------------------------
    INITIALIZE
    ---------------------------------------------------------------- */
-(async function initDashboard() {
-  try {
-    if (window.TabOutFavorites) window.TabOutFavorites.initFavorites();
-  } catch (err) {
-    console.warn('[tab-out] Favorites init failed:', err);
-  }
-  await renderDashboard();
-})();
+if (window.__TAB_OUT_DEV_TEST__) {
+  window.TabOutAppTest = { renderDeferredItem, renderArchiveItem };
+} else {
+  (async function initDashboard() {
+    try {
+      if (window.TabOutFavorites) window.TabOutFavorites.initFavorites();
+    } catch (err) {
+      console.warn('[tab-out] Favorites init failed:', err);
+    }
+    await renderDashboard();
+  })();
+}

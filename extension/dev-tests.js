@@ -104,6 +104,42 @@
     assert('favorite form init binds once', modalForm.dataset.favoritesBound === 'true');
     assert('favorite storage listener binds once', window.__tabOutStorageListeners.length === 1);
 
+    await chrome.storage.local.set({
+      favorites: [
+        TabOutFavorites.normalizeFavoriteInput({
+          title: 'Cross page',
+          url: 'linear.app',
+          accentColor: '#4f745e',
+        }),
+      ],
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert('favorite storage listener rerenders grid', Boolean(favoriteGrid.querySelector('a[href="https://linear.app/"]')));
+
+    const deferredHost = document.createElement('div');
+    deferredHost.innerHTML = TabOutAppTest.renderDeferredItem({
+      id: 'deferred" data-bad="1',
+      url: 'https://example.com/?q=<script>',
+      title: '<img src=x onerror=alert(1)>',
+      savedAt: '2026-04-18T08:00:00.000Z',
+    });
+    const deferredLink = deferredHost.querySelector('.deferred-title');
+    assert('deferred render keeps malicious title as text', deferredLink.textContent.includes('<img src=x onerror=alert(1)>'));
+    assert('deferred render avoids injected title image', deferredLink.querySelectorAll('img').length === 1);
+    assert('deferred render avoids inline handlers', !deferredHost.querySelector('[onerror],[onclick]'));
+
+    const archiveHost = document.createElement('div');
+    archiveHost.innerHTML = TabOutAppTest.renderArchiveItem({
+      url: 'https://archive.example/<x>',
+      title: '<svg onload=alert(1)>',
+      savedAt: '2026-04-18T08:00:00.000Z',
+      completedAt: '2026-04-19T08:00:00.000Z',
+    });
+    const archiveLink = archiveHost.querySelector('.archive-item-title');
+    assert('archive render keeps malicious title as text', archiveLink.textContent.includes('<svg onload=alert(1)>'));
+    assert('archive render avoids injected svg', !archiveHost.querySelector('svg'));
+    assert('archive render avoids inline handlers', !archiveHost.querySelector('[onload],[onclick]'));
+
     await TabOutTasks.ensureStarterTags();
     const tags = await TabOutTasks.getTaskTags();
     assert('starter tags seeded', tags.length >= 4);

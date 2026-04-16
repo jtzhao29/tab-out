@@ -4,6 +4,7 @@
   const storageData = {};
   const storageListeners = [];
 
+  window.__TAB_OUT_DEV_TEST__ = true;
   window.__tabOutDevStorage = storageData;
   window.__tabOutStorageListeners = storageListeners;
   window.chrome = window.chrome || {};
@@ -17,7 +18,12 @@
         return { ...storageData };
       },
       async set(values) {
+        const changes = {};
+        Object.entries(values).forEach(([key, value]) => {
+          changes[key] = { oldValue: storageData[key], newValue: value };
+        });
         Object.assign(storageData, values);
+        storageListeners.forEach(listener => listener(changes, 'local'));
       },
     },
     onChanged: {
