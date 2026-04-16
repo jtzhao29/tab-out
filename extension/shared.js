@@ -45,8 +45,29 @@ window.TabOutShared = (() => {
       .split('.')
       .filter(Boolean);
     if (parts.length === 0) return '?';
-    if (parts.length <= 2) return parts[0][0].toUpperCase();
-    return parts.slice(0, 2).map(part => part[0]).join('').toUpperCase();
+
+    const multiPartSuffixes = new Set([
+      'co.uk',
+      'org.uk',
+      'ac.uk',
+      'gov.uk',
+      'edu.au',
+      'com.au',
+      'net.au',
+      'org.au',
+      'com.br',
+      'com.cn',
+      'com.mx',
+      'co.jp',
+      'co.nz',
+      'co.in',
+    ]);
+    const suffix = parts.slice(-2).join('.');
+    const labelParts = multiPartSuffixes.has(suffix)
+      ? parts.slice(0, -2)
+      : parts.slice(0, -1);
+    const initialsSource = labelParts.length > 0 ? labelParts : [parts[0]];
+    return initialsSource.slice(0, 2).map(part => part[0]).join('').toUpperCase();
   }
 
   function faviconUrl(pageUrl, size = 64) {
@@ -73,6 +94,7 @@ window.TabOutShared = (() => {
 
   function addDays(dateString, days) {
     if (!isValidDateString(dateString)) throw new Error('Invalid date.');
+    if (!Number.isFinite(days) || !Number.isInteger(days)) throw new Error('Invalid day offset.');
     const date = new Date(`${dateString}T00:00:00`);
     date.setDate(date.getDate() + days);
     return todayString(date);

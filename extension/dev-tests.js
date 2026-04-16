@@ -24,6 +24,7 @@
     assert('normalizeUrl adds https', TabOutShared.normalizeUrl('github.com') === 'https://github.com/');
     assert('hostnameFromUrl strips www', TabOutShared.hostnameFromUrl('https://www.github.com/path') === 'github.com');
     assert('initialsForHost collapses common TLDs', TabOutShared.initialsForHost('github.com') === 'G');
+    assert('initialsForHost handles multi-part suffixes', TabOutShared.initialsForHost('github.co.uk') === 'G');
     assert('initialsForHost keeps subdomain initials', TabOutShared.initialsForHost('mail.google.com') === 'MG');
     assert('isValidDateString accepts valid dates', TabOutShared.isValidDateString('2026-04-18'));
     assert('isValidDateString rejects invalid dates', !TabOutShared.isValidDateString('2026-02-30'));
@@ -33,7 +34,8 @@
     assert('formatDateLabel shortens date', TabOutShared.formatDateLabel('2026-04-18') === expectedLabel);
 
     assert('addDays returns expected date', TabOutShared.addDays('2026-04-16', 1) === '2026-04-17');
-    assertThrows('addDays rejects invalid input', () => TabOutShared.addDays('2026-02-30', 1), 'Invalid date');
+    await assertThrows('addDays rejects invalid input', () => TabOutShared.addDays('2026-02-30', 1), 'Invalid date');
+    await assertThrows('addDays rejects invalid offset', () => TabOutShared.addDays('2026-04-16', Number.NaN), 'Invalid day offset');
     assert('faviconUrl uses extension endpoint', TabOutShared.faviconUrl('https://github.com').includes('/_favicon/'));
 
     assert('monthLabel uses locale month/year', TabOutShared.monthLabel(2026, 3) === new Date(2026, 3, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }));
