@@ -140,13 +140,47 @@
     assert('archive render avoids injected svg', !archiveHost.querySelector('svg'));
     assert('archive render avoids inline handlers', !archiveHost.querySelector('[onload],[onclick]'));
 
-    await TabOutTasks.ensureStarterTags();
-    const tags = await TabOutTasks.getTaskTags();
-    assert('starter tags seeded', tags.length >= 4);
+    delete window.__tabOutDevStorage.tasks;
+    delete window.__tabOutDevStorage.taskTags;
+    window.__tabOutDevStorage.taskTagsSeeded = false;
 
-    const task = TabOutTasks.normalizeTaskDraft({ title: '  Ship plan  ', tagId: tags[0].id, dueDate: '2026-04-18' });
+    const seededTags = await TabOutTasks.ensureStarterTags();
+    assert('starter tags use name', seededTags[0].name === 'Design');
+    assert('starter tags seeded once', window.__tabOutDevStorage.taskTags.length === 4 && window.__tabOutDevStorage.taskTagsSeeded === true);
+    const customTag = { id: 'custom_tag', name: 'Custom', color: '#4d6775', createdAt: '2026-04-18T08:00:00.000Z' };
+    await chrome.storage.local.set({ taskTags: [customTag], taskTagsSeeded: false });
+    const existingTags = await TabOutTasks.ensureStarterTags();
+    assert('starter tags do not overwrite existing tags', existingTags.length === 1 && existingTags[0].id === 'custom_tag');
+
+    const tags = await TabOutTasks.getTaskTags();
+    const task = TabOutTasks.normalizeTaskDraft({ title: '  Ship plan  ', notes: '  Notes  ', tagId: tags[0].id, dueDate: '2026-04-18' });
     assert('task title trimmed', task.title === 'Ship plan');
+    assert('task notes trimmed', task.notes === 'Notes');
     assert('valid date preserved', task.dueDate === '2026-04-18');
+    assert('task draft has timestamps', Boolean(task.createdAt) && Boolean(task.updatedAt));
+    const undatedTask = TabOutTasks.normalizeTaskDraft({ title: 'No due date', dueDate: '' });
+    assert('empty task date normalized', undatedTask.dueDate === '');
+    await assertThrows('task draft rejects invalid date', () => TabOutTasks.normalizeTaskDraft({ title: 'Bad date', dueDate: '2026-02-30' }), 'Use YYYY-MM-DD.');
+
+    await chrome.storage.local.set({ tasks: [] });
+    const savedTask = await TabOutTasks.saveTask({ title: '  First task  ', dueDate: '2026-04-18' });
+    assert('saveTask inserts task', window.__tabOutDevStorage.tasks.length === 1 && savedTask.title === 'First task');
+    const editedTask = await TabOutTasks.saveTask({ ...savedTask, title: 'Edited task', completedAt: '2026-04-19T08:00:00.000Z' });
+    assert('saveTask updates by id', window.__tabOutDevStorage.tasks.length === 1 && window.__tabOutDevStorage.tasks[0].title === 'Edited task');
+    assert('saveTask preserves createdAt and completedAt', editedTask.createdAt === savedTask.createdAt && editedTask.completedAt === '2026-04-19T08:00:00.000Z');
+
+    const completedTask = await TabOutTasks.completeTask(savedTask.id);
+    assert('completeTask marks completed', completedTask.completed && Boolean(completedTask.completedAt));
+    const missingCompletion = await TabOutTasks.completeTask('missing-task');
+    assert('completeTask missing is no-op', missingCompletion === null);
+
+    await chrome.storage.local.set({ taskTags: [customTag], taskTagsSeeded: true });
+    const duplicateTag = await TabOutTasks.createTag(' custom ', '#6c6386');
+    assert('createTag returns duplicate case-insensitively', duplicateTag.id === 'custom_tag' && window.__tabOutDevStorage.taskTags.length === 1);
+    const createdTag = await TabOutTasks.createTag('Planning', '#b4873c');
+    assert('createTag stores valid tag', createdTag.name === 'Planning' && window.__tabOutDevStorage.taskTags.length === 2);
+    await assertThrows('createTag rejects empty name', () => TabOutTasks.createTag('   ', '#6c6386'), 'Enter a tag name.');
+    await assertThrows('createTag rejects invalid color', () => TabOutTasks.createTag('Bad Color', '#ffffff'), 'Choose a tag color.');
 
     const grouped = TabOutTasks.groupTasksByDate([
       { id: 'a', title: 'A', dueDate: '2026-04-18', completed: false },
@@ -154,6 +188,7 @@
       { id: 'c', title: 'C', dueDate: '2026-04-18', completed: true },
     ]);
     assert('calendar excludes undated and completed tasks', grouped['2026-04-18'].length === 1);
+    assert('activeTasks filters completed', TabOutTasks.activeTasks([{ completed: false }, { completed: true }]).length === 1);
 
     results.className = 'pass';
     results.textContent = lines.join('\n');
