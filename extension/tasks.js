@@ -70,7 +70,7 @@ window.TabOutTasks = (() => {
       completed: Boolean(input.completed),
       createdAt,
       updatedAt,
-      completedAt: input.completedAt || '',
+      completedAt: input.completedAt || null,
     };
   }
 
@@ -111,7 +111,7 @@ window.TabOutTasks = (() => {
     return task;
   }
 
-  async function createTag(name, color) {
+  async function createTag(name, color = TAG_COLORS[0]) {
     const tagName = String(name || '').trim();
     if (!tagName) throw new Error('Enter a tag name.');
 
@@ -160,7 +160,9 @@ window.TabOutTasks = (() => {
     TAG_COLORS,
     normalizeTaskDraft,
     getTasks,
+    setTasks,
     getTaskTags,
+    setTaskTags,
     ensureStarterTags,
     saveTask,
     completeTask,

@@ -144,13 +144,29 @@
     delete window.__tabOutDevStorage.taskTags;
     window.__tabOutDevStorage.taskTagsSeeded = false;
 
+    assert('task tag colors match contract', JSON.stringify(TabOutTasks.TAG_COLORS) === JSON.stringify(['#6c6386', '#4f745e', '#b0623f', '#9a5655', '#4d6775', '#b4873c']));
     const seededTags = await TabOutTasks.ensureStarterTags();
+    const expectedStarterTags = [
+      ['tag_design', 'Design', '#6c6386'],
+      ['tag_work', 'Work', '#4f745e'],
+      ['tag_personal', 'Personal', '#b0623f'],
+      ['tag_urgent', 'Urgent', '#9a5655'],
+    ];
+    assert('starter tags match contract', seededTags.every((tag, index) =>
+      tag.id === expectedStarterTags[index][0] &&
+      tag.name === expectedStarterTags[index][1] &&
+      tag.color === expectedStarterTags[index][2] &&
+      Boolean(tag.createdAt)
+    ));
     assert('starter tags use name', seededTags[0].name === 'Design');
     assert('starter tags seeded once', window.__tabOutDevStorage.taskTags.length === 4 && window.__tabOutDevStorage.taskTagsSeeded === true);
     const customTag = { id: 'custom_tag', name: 'Custom', color: '#4d6775', createdAt: '2026-04-18T08:00:00.000Z' };
     await chrome.storage.local.set({ taskTags: [customTag], taskTagsSeeded: false });
     const existingTags = await TabOutTasks.ensureStarterTags();
     assert('starter tags do not overwrite existing tags', existingTags.length === 1 && existingTags[0].id === 'custom_tag');
+
+    await TabOutTasks.setTaskTags(seededTags);
+    assert('setTaskTags stores public tag array', (await TabOutTasks.getTaskTags()).length === 4);
 
     const tags = await TabOutTasks.getTaskTags();
     const task = TabOutTasks.normalizeTaskDraft({ title: '  Ship plan  ', notes: '  Notes  ', tagId: tags[0].id, dueDate: '2026-04-18' });
@@ -163,6 +179,9 @@
     await assertThrows('task draft rejects invalid date', () => TabOutTasks.normalizeTaskDraft({ title: 'Bad date', dueDate: '2026-02-30' }), 'Use YYYY-MM-DD.');
 
     await chrome.storage.local.set({ tasks: [] });
+    await TabOutTasks.setTasks([{ id: 'seed_task', title: 'Seed', completed: false }]);
+    assert('setTasks stores public task array', (await TabOutTasks.getTasks()).length === 1);
+    await TabOutTasks.setTasks([]);
     const savedTask = await TabOutTasks.saveTask({ title: '  First task  ', dueDate: '2026-04-18' });
     assert('saveTask inserts task', window.__tabOutDevStorage.tasks.length === 1 && savedTask.title === 'First task');
     const editedTask = await TabOutTasks.saveTask({ ...savedTask, title: 'Edited task', completedAt: '2026-04-19T08:00:00.000Z' });
@@ -179,6 +198,8 @@
     assert('createTag returns duplicate case-insensitively', duplicateTag.id === 'custom_tag' && window.__tabOutDevStorage.taskTags.length === 1);
     const createdTag = await TabOutTasks.createTag('Planning', '#b4873c');
     assert('createTag stores valid tag', createdTag.name === 'Planning' && window.__tabOutDevStorage.taskTags.length === 2);
+    const defaultColorTag = await TabOutTasks.createTag('Default color');
+    assert('createTag defaults to first color', defaultColorTag.color === TabOutTasks.TAG_COLORS[0]);
     await assertThrows('createTag rejects empty name', () => TabOutTasks.createTag('   ', '#6c6386'), 'Enter a tag name.');
     await assertThrows('createTag rejects invalid color', () => TabOutTasks.createTag('Bad Color', '#ffffff'), 'Choose a tag color.');
 
