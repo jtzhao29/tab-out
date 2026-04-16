@@ -93,9 +93,9 @@
     modalBackdrop.setAttribute('aria-modal', 'true');
     modalBackdrop.setAttribute('aria-labelledby', 'favoriteEditorTitle');
     document.body.appendChild(modalBackdrop);
-    assert('favorite modal has dialog role', modalBackdrop.attributes.role === 'dialog');
-    assert('favorite modal is aria modal', modalBackdrop.attributes['aria-modal'] === 'true');
-    assert('favorite modal is labelled', modalBackdrop.attributes['aria-labelledby'] === 'favoriteEditorTitle');
+    assert('favorite modal has dialog role', modalBackdrop.getAttribute('role') === 'dialog');
+    assert('favorite modal is aria modal', modalBackdrop.getAttribute('aria-modal') === 'true');
+    assert('favorite modal is labelled', modalBackdrop.getAttribute('aria-labelledby') === 'favoriteEditorTitle');
     const modalForm = document.createElement('form');
     modalForm.id = 'favoriteEditor';
     document.body.appendChild(modalForm);
