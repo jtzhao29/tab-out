@@ -41,13 +41,12 @@ window.TabOutShared = (() => {
   }
 
   function initialsForHost(hostname) {
-    return (hostname || '?')
+    const parts = String(hostname || '')
       .split('.')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
+      .filter(Boolean);
+    if (parts.length === 0) return '?';
+    if (parts.length <= 2) return parts[0][0].toUpperCase();
+    return parts.slice(0, 2).map(part => part[0]).join('').toUpperCase();
   }
 
   function faviconUrl(pageUrl, size = 64) {
@@ -73,6 +72,7 @@ window.TabOutShared = (() => {
   }
 
   function addDays(dateString, days) {
+    if (!isValidDateString(dateString)) throw new Error('Invalid date.');
     const date = new Date(`${dateString}T00:00:00`);
     date.setDate(date.getDate() + days);
     return todayString(date);
