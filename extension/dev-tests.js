@@ -164,6 +164,7 @@
     await chrome.storage.local.set({ taskTags: [customTag], taskTagsSeeded: false });
     const existingTags = await TabOutTasks.ensureStarterTags();
     assert('starter tags do not overwrite existing tags', existingTags.length === 1 && existingTags[0].id === 'custom_tag');
+    assert('starter tags mark existing set seeded', window.__tabOutDevStorage.taskTagsSeeded === true);
 
     await TabOutTasks.setTaskTags(seededTags);
     assert('setTaskTags stores public tag array', (await TabOutTasks.getTaskTags()).length === 4);
@@ -184,12 +185,20 @@
     await TabOutTasks.setTasks([]);
     const savedTask = await TabOutTasks.saveTask({ title: '  First task  ', dueDate: '2026-04-18' });
     assert('saveTask inserts task', window.__tabOutDevStorage.tasks.length === 1 && savedTask.title === 'First task');
-    const editedTask = await TabOutTasks.saveTask({ ...savedTask, title: 'Edited task', completedAt: '2026-04-19T08:00:00.000Z' });
+    const editedTask = await TabOutTasks.saveTask({
+      ...savedTask,
+      title: 'Edited task',
+      createdAt: '1999-01-01T00:00:00.000Z',
+      completedAt: '2026-04-19T08:00:00.000Z',
+    });
     assert('saveTask updates by id', window.__tabOutDevStorage.tasks.length === 1 && window.__tabOutDevStorage.tasks[0].title === 'Edited task');
-    assert('saveTask preserves createdAt and completedAt', editedTask.createdAt === savedTask.createdAt && editedTask.completedAt === '2026-04-19T08:00:00.000Z');
+    assert('saveTask protects createdAt on edit', editedTask.createdAt === savedTask.createdAt);
+    assert('saveTask clears completedAt for incomplete tasks', editedTask.completedAt === null);
 
     const completedTask = await TabOutTasks.completeTask(savedTask.id);
     assert('completeTask marks completed', completedTask.completed && Boolean(completedTask.completedAt));
+    const repeatedCompletion = await TabOutTasks.completeTask(savedTask.id);
+    assert('completeTask preserves completion history', repeatedCompletion.completedAt === completedTask.completedAt);
     const missingCompletion = await TabOutTasks.completeTask('missing-task');
     assert('completeTask missing is no-op', missingCompletion === null);
 
@@ -200,6 +209,8 @@
     assert('createTag stores valid tag', createdTag.name === 'Planning' && window.__tabOutDevStorage.taskTags.length === 2);
     const defaultColorTag = await TabOutTasks.createTag('Default color');
     assert('createTag defaults to first color', defaultColorTag.color === TabOutTasks.TAG_COLORS[0]);
+    const blankColorTag = await TabOutTasks.createTag('Blank color', '');
+    assert('createTag blank color uses default', blankColorTag.color === TabOutTasks.TAG_COLORS[0]);
     await assertThrows('createTag rejects empty name', () => TabOutTasks.createTag('   ', '#6c6386'), 'Enter a tag name.');
     await assertThrows('createTag rejects invalid color', () => TabOutTasks.createTag('Bad Color', '#ffffff'), 'Choose a tag color.');
 

@@ -40,6 +40,10 @@ window.TabOutTasks = (() => {
       [TAG_SEEDED_KEY]: taskTagsSeeded,
     } = await chrome.storage.local.get([TAGS_KEY, TAG_SEEDED_KEY]);
     const existingTags = Array.isArray(taskTags) ? taskTags : [];
+    if (!taskTagsSeeded && existingTags.length > 0) {
+      await chrome.storage.local.set({ [TAG_SEEDED_KEY]: true });
+      return existingTags;
+    }
     if (taskTagsSeeded || existingTags.length > 0) return existingTags;
 
     const createdAt = new Date().toISOString();
@@ -60,6 +64,7 @@ window.TabOutTasks = (() => {
 
     const updatedAt = new Date().toISOString();
     const createdAt = input.createdAt || updatedAt;
+    const completed = Boolean(input.completed);
 
     return {
       id: String(input.id || TabOutShared.makeId('task')),
@@ -67,10 +72,10 @@ window.TabOutTasks = (() => {
       notes: String(input.notes || '').trim(),
       tagId: String(input.tagId || '').trim(),
       dueDate,
-      completed: Boolean(input.completed),
+      completed,
       createdAt,
       updatedAt,
-      completedAt: input.completedAt || null,
+      completedAt: completed ? (input.completedAt || updatedAt) : null,
     };
   }
 
@@ -79,7 +84,9 @@ window.TabOutTasks = (() => {
     const id = String(input.id || '').trim();
     const index = id ? tasks.findIndex(task => task && task.id === id) : -1;
     const existing = index === -1 ? null : tasks[index];
-    const task = normalizeTaskDraft(existing ? { ...existing, ...input, id } : input);
+    const task = normalizeTaskDraft(existing
+      ? { ...existing, ...input, id, createdAt: existing.createdAt }
+      : input);
 
     if (index === -1) {
       tasks.push(task);
@@ -98,6 +105,7 @@ window.TabOutTasks = (() => {
     const tasks = await getTasks();
     const index = tasks.findIndex(task => task && task.id === targetId);
     if (index === -1) return null;
+    if (tasks[index].completed) return tasks[index];
 
     const completedAt = new Date().toISOString();
     const task = {
@@ -119,7 +127,7 @@ window.TabOutTasks = (() => {
     const existing = taskTags.find(tag => String(tag?.name || '').toLowerCase() === tagName.toLowerCase());
     if (existing) return existing;
 
-    const tagColor = String(color || '').trim();
+    const tagColor = String(color == null ? TAG_COLORS[0] : color).trim() || TAG_COLORS[0];
     if (!TAG_COLORS.includes(tagColor)) throw new Error('Choose a tag color.');
 
     const tag = {
