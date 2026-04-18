@@ -222,6 +222,62 @@
     assert('calendar excludes undated and completed tasks', grouped['2026-04-18'].length === 1);
     assert('activeTasks filters completed', TabOutTasks.activeTasks([{ completed: false }, { completed: true }]).length === 1);
 
+    const tasksPanel = document.createElement('section');
+    tasksPanel.innerHTML = '<span id="tasksCount"></span><div id="tasksRoot"></div><span id="calendarMonthLabel"></span><div id="calendarRoot"></div>';
+    document.body.appendChild(tasksPanel);
+    await TabOutTasks.setTaskTags([
+      { id: 'tag_work', name: '<Work>', color: '#4f745e', createdAt: '2026-04-18T08:00:00.000Z' },
+    ]);
+    await TabOutTasks.setTasks([
+      {
+        id: 'active_task',
+        title: '<Ship UI>',
+        notes: '',
+        tagId: 'tag_work',
+        dueDate: '2026-04-18',
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+      {
+        id: 'done_task',
+        title: 'Done task',
+        notes: '',
+        tagId: '',
+        dueDate: '',
+        completed: true,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: '2026-04-18T09:00:00.000Z',
+      },
+    ]);
+    await TabOutTasks.renderTasksDashboard();
+    assert('tasks dashboard renders new task trigger', Boolean(tasksPanel.querySelector('[data-action="open-task-composer"]')));
+    assert('tasks dashboard renders active tasks', tasksPanel.querySelector('#tasksRoot').textContent.includes('<Ship UI>'));
+    assert('tasks dashboard excludes completed tasks', !tasksPanel.querySelector('#tasksRoot').textContent.includes('Done task'));
+    assert('tasks dashboard updates open count', tasksPanel.querySelector('#tasksCount').textContent === '1 open');
+
+    const openedComposer = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="open-task-composer"]'));
+    assert('open task composer action handled', openedComposer);
+    assert('open task composer renders form', Boolean(tasksPanel.querySelector('#taskComposer')));
+
+    tasksPanel.querySelector('#taskTitleInput').value = '  New task from form  ';
+    tasksPanel.querySelector('#taskNotesInput').value = '  Details  ';
+    const submitHandled = await TabOutTasks.handleTaskSubmit(new Event('submit', { cancelable: true, bubbles: true }));
+    assert('task submit ignores unrelated targets', !submitHandled);
+    const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+    Object.defineProperty(submitEvent, 'target', { value: tasksPanel.querySelector('#taskComposer') });
+    const handledSubmit = await TabOutTasks.handleTaskSubmit(submitEvent);
+    assert('task submit action handled', handledSubmit);
+    assert('task submit saves task', (await TabOutTasks.getTasks()).some(saved => saved.title === 'New task from form' && saved.notes === 'Details'));
+    assert('task submit closes composer', !tasksPanel.querySelector('#taskComposer'));
+
+    const completeButton = tasksPanel.querySelector('[data-action="complete-task"][data-task-id="active_task"]');
+    const completedFromAction = await TabOutTasks.handleTaskAction(completeButton);
+    assert('complete task action handled', completedFromAction);
+    assert('complete task removes task from active list', !tasksPanel.querySelector('#tasksRoot').textContent.includes('<Ship UI>'));
+
     results.className = 'pass';
     results.textContent = lines.join('\n');
   } catch (err) {

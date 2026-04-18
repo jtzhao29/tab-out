@@ -1151,6 +1151,15 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 /* Saved for later column — fixed width on the right, scrolls independently */
+.personal-rail {
+  width: 280px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 32px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+
 .deferred-column {
   width: 280px;
   flex-shrink: 0;
@@ -1160,11 +1169,19 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   overflow-y: auto;
 }
 
+.personal-rail .deferred-column {
+  width: 100%;
+  position: static;
+  max-height: none;
+  overflow: visible;
+}
+
 /* On narrow screens, stack vertically */
 @media (max-width: 800px) {
   .dashboard-columns {
     flex-direction: column;
   }
+  .personal-rail,
   .deferred-column {
     width: 100%;
     position: static;

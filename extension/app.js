@@ -1184,6 +1184,11 @@ async function renderStaticDashboard() {
 
   // --- Render "Saved for Later" column ---
   await renderDeferredColumn();
+
+  if (window.TabOutTasks) {
+    await window.TabOutTasks.renderTasksDashboard();
+    await window.TabOutTasks.renderCalendar();
+  }
 }
 
 async function renderDashboard() {
@@ -1207,6 +1212,7 @@ document.addEventListener('click', async (e) => {
   const action = actionEl.dataset.action;
 
   if (window.TabOutFavorites && await window.TabOutFavorites.handleFavoriteAction(actionEl)) return;
+  if (window.TabOutTasks && await window.TabOutTasks.handleTaskAction(actionEl)) return;
 
   // ---- Close duplicate Tab Out tabs ----
   if (action === 'close-tabout-dupes') {
@@ -1451,6 +1457,10 @@ document.addEventListener('click', async (e) => {
     showToast('All tabs closed. Fresh start.');
     return;
   }
+});
+
+document.addEventListener('submit', async (e) => {
+  if (window.TabOutTasks && await window.TabOutTasks.handleTaskSubmit(e)) return;
 });
 
 document.addEventListener('error', (e) => {
