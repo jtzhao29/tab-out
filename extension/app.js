@@ -1186,8 +1186,16 @@ async function renderStaticDashboard() {
   await renderDeferredColumn();
 
   if (window.TabOutTasks) {
-    await window.TabOutTasks.renderTasksDashboard();
-    await window.TabOutTasks.renderCalendar();
+    try {
+      await window.TabOutTasks.renderTasksDashboard();
+      await window.TabOutTasks.renderCalendar();
+    } catch (err) {
+      console.warn('[tab-out] Tasks render failed:', err);
+      const root = document.getElementById('tasksRoot');
+      const count = document.getElementById('tasksCount');
+      if (root) root.innerHTML = '<div class="tasks-empty">Tasks are unavailable right now.</div>';
+      if (count) count.textContent = '';
+    }
   }
 }
 

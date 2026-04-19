@@ -226,7 +226,7 @@
     tasksPanel.innerHTML = '<span id="tasksCount"></span><div id="tasksRoot"></div><span id="calendarMonthLabel"></span><div id="calendarRoot"></div>';
     document.body.appendChild(tasksPanel);
     await TabOutTasks.setTaskTags([
-      { id: 'tag_work', name: '<Work>', color: '#4f745e', createdAt: '2026-04-18T08:00:00.000Z' },
+      { id: 'tag_work', name: '<Work>', color: 'red;background:url(javascript:bad)', createdAt: '2026-04-18T08:00:00.000Z' },
     ]);
     await TabOutTasks.setTasks([
       {
@@ -257,6 +257,8 @@
     assert('tasks dashboard renders active tasks', tasksPanel.querySelector('#tasksRoot').textContent.includes('<Ship UI>'));
     assert('tasks dashboard excludes completed tasks', !tasksPanel.querySelector('#tasksRoot').textContent.includes('Done task'));
     assert('tasks dashboard updates open count', tasksPanel.querySelector('#tasksCount').textContent === '1 open');
+    const renderedTaskTag = tasksPanel.querySelector('.task-tag-pill');
+    assert('task tag color render is whitelisted', renderedTaskTag.getAttribute('style').includes(TabOutTasks.TAG_COLORS[0]) && !renderedTaskTag.getAttribute('style').includes('background'));
 
     const openedComposer = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="open-task-composer"]'));
     assert('open task composer action handled', openedComposer);
@@ -273,10 +275,23 @@
     assert('task submit saves task', (await TabOutTasks.getTasks()).some(saved => saved.title === 'New task from form' && saved.notes === 'Details'));
     assert('task submit closes composer', !tasksPanel.querySelector('#taskComposer'));
 
+    const editButton = tasksPanel.querySelector('[data-action="edit-task"][data-task-id="active_task"]');
+    const editHandled = await TabOutTasks.handleTaskAction(editButton);
+    assert('edit task action handled', editHandled);
+    assert('edit task composer loads title', tasksPanel.querySelector('#taskTitleInput').value === '<Ship UI>');
+    tasksPanel.querySelector('#taskTitleInput').value = 'Edited active task';
+    const editSubmitEvent = new Event('submit', { cancelable: true, bubbles: true });
+    Object.defineProperty(editSubmitEvent, 'target', { value: tasksPanel.querySelector('#taskComposer') });
+    await TabOutTasks.handleTaskSubmit(editSubmitEvent);
+    assert('edit task submit updates existing task', (await TabOutTasks.getTasks()).some(saved => saved.id === 'active_task' && saved.title === 'Edited active task'));
+
+    await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="open-task-composer"]'));
+    tasksPanel.querySelector('#taskTitleInput').value = 'Unsaved draft';
     const completeButton = tasksPanel.querySelector('[data-action="complete-task"][data-task-id="active_task"]');
     const completedFromAction = await TabOutTasks.handleTaskAction(completeButton);
     assert('complete task action handled', completedFromAction);
-    assert('complete task removes task from active list', !tasksPanel.querySelector('#tasksRoot').textContent.includes('<Ship UI>'));
+    assert('complete task preserves unrelated composer draft', tasksPanel.querySelector('#taskComposer') && tasksPanel.querySelector('#taskTitleInput').value === 'Unsaved draft');
+    assert('complete task removes task from active list', !tasksPanel.querySelector('#tasksRoot').textContent.includes('Edited active task'));
 
     results.className = 'pass';
     results.textContent = lines.join('\n');

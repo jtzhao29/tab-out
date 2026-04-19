@@ -180,7 +180,8 @@ window.TabOutTasks = (() => {
   function renderTagPill(tag) {
     if (!tag) return '';
     const safeName = TabOutShared.escapeHtml(tag.name);
-    const safeColor = TabOutShared.escapeHtml(tag.color || '');
+    const color = TAG_COLORS.includes(tag.color) ? tag.color : TAG_COLORS[0];
+    const safeColor = TabOutShared.escapeHtml(color);
     return `<span class="task-tag-pill" style="--task-tag-color:${safeColor}">${safeName}</span>`;
   }
 
@@ -267,6 +268,19 @@ window.TabOutTasks = (() => {
     if (label) label.textContent = TabOutShared.monthLabel(visibleMonth.year, visibleMonth.monthIndex);
   }
 
+  function syncComposerFromDom() {
+    if (composerState.mode === 'closed') return;
+    const form = document.getElementById('taskComposer');
+    if (!form) return;
+    const titleInput = form.querySelector('#taskTitleInput');
+    const notesInput = form.querySelector('#taskNotesInput');
+    composerState = {
+      ...composerState,
+      title: titleInput ? titleInput.value : composerState.title,
+      notes: notesInput ? notesInput.value : composerState.notes,
+    };
+  }
+
   async function handleTaskAction(actionEl) {
     if (!actionEl) return false;
     const action = actionEl.dataset.action;
@@ -297,8 +311,10 @@ window.TabOutTasks = (() => {
     if (action === 'complete-task') {
       const taskId = actionEl.dataset.taskId;
       if (!taskId) return false;
+      const isEditingCompletedTask = composerState.mode === 'edit' && composerState.taskId === taskId;
+      if (!isEditingCompletedTask) syncComposerFromDom();
       await completeTask(taskId);
-      resetComposer();
+      if (isEditingCompletedTask) resetComposer();
       await renderTasksDashboard();
       await renderCalendar();
       return true;
