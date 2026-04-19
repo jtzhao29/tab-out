@@ -518,6 +518,7 @@ window.TabOutTasks = (() => {
       if (visibleDateInput && !TabOutShared.isValidDateString(visibleDateInput)) {
         throw new Error('Use YYYY-MM-DD.');
       }
+      if (visibleDateInput) composerState.dueDate = visibleDateInput;
       await saveTask({
         id: composerState.mode === 'edit' ? composerState.taskId : undefined,
         title: titleInput ? titleInput.value : '',
@@ -557,8 +558,9 @@ window.TabOutTasks = (() => {
       const selectionStart = target.selectionStart;
       const selectionEnd = target.selectionEnd;
       dateInput = target.value || '';
-      if (!dateInput.trim()) composerState.dueDate = '';
-      else if (TabOutShared.isValidDateString(dateInput)) composerState.dueDate = dateInput;
+      const trimmedDateInput = dateInput.trim();
+      if (!trimmedDateInput) composerState.dueDate = '';
+      else if (TabOutShared.isValidDateString(trimmedDateInput)) composerState.dueDate = trimmedDateInput;
       await renderTasksDashboard();
       focusById('dateInput', selectionStart, selectionEnd);
       return true;

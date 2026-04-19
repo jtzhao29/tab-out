@@ -323,6 +323,11 @@
     await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="clear-task-date"]'));
     assert('task input ignores archive search', !(await TabOutTasks.handleTaskInput({ target: { id: 'archiveSearch', value: 'ship' } })));
 
+    await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="toggle-date-menu"]'));
+    tasksPanel.querySelector('#dateInput').value = ' 2026-06-01 ';
+    await TabOutTasks.handleTaskInput({ target: tasksPanel.querySelector('#dateInput') });
+    assert('whitespace padded date updates composer date label', tasksPanel.querySelector('[data-action="toggle-date-menu"]').textContent.trim() === TabOutShared.formatDateLabel('2026-06-01'));
+
     tasksPanel.querySelector('#taskTitleInput').value = '  New task from form  ';
     tasksPanel.querySelector('#taskNotesInput').value = '  Details  ';
     const submitHandled = await TabOutTasks.handleTaskSubmit(new Event('submit', { cancelable: true, bubbles: true }));
@@ -331,7 +336,7 @@
     Object.defineProperty(submitEvent, 'target', { value: tasksPanel.querySelector('#taskComposer') });
     const handledSubmit = await TabOutTasks.handleTaskSubmit(submitEvent);
     assert('task submit action handled', handledSubmit);
-    assert('task submit saves task', (await TabOutTasks.getTasks()).some(saved => saved.title === 'New task from form' && saved.notes === 'Details'));
+    assert('task submit saves task', (await TabOutTasks.getTasks()).some(saved => saved.title === 'New task from form' && saved.notes === 'Details' && saved.dueDate === '2026-06-01'));
     assert('task submit closes composer', !tasksPanel.querySelector('#taskComposer'));
 
     const editButton = tasksPanel.querySelector('[data-action="edit-task"][data-task-id="active_task"]');
