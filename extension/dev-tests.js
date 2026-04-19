@@ -273,9 +273,15 @@
     const openedTagMenu = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="toggle-tag-menu"]'));
     assert('tag property menu action handled', openedTagMenu);
     assert('tag property menu renders search', Boolean(tasksPanel.querySelector('#tagSearchInput')));
-    tasksPanel.querySelector('#tagSearchInput').value = 'Roadmap';
-    const tagSearchHandled = await TabOutTasks.handleTaskInput({ target: tasksPanel.querySelector('#tagSearchInput') });
+    assert('tag property toggle exposes expanded state', tasksPanel.querySelector('[data-action="toggle-tag-menu"]').getAttribute('aria-expanded') === 'true');
+    assert('tag property search has accessible label', tasksPanel.querySelector('#tagSearchInput').getAttribute('aria-label') === 'Search or create tag');
+    assert('tag property menu avoids menu role without keyboard semantics', !tasksPanel.querySelector('.task-tag-menu').hasAttribute('role'));
+    const tagSearchInput = tasksPanel.querySelector('#tagSearchInput');
+    tagSearchInput.value = 'Roadmap';
+    tagSearchInput.setSelectionRange(4, 4);
+    const tagSearchHandled = await TabOutTasks.handleTaskInput({ target: tagSearchInput });
     assert('tag search input handled', tagSearchHandled);
+    assert('tag search preserves caret position', tasksPanel.querySelector('#tagSearchInput').selectionStart === 4);
     assert('tag search rerender preserves title draft', tasksPanel.querySelector('#taskTitleInput').value === 'Draft survives');
     assert('tag search rerender preserves notes draft', tasksPanel.querySelector('#taskNotesInput').value === 'Notes survive');
     assert('tag create option appears for unmatched query', Boolean(tasksPanel.querySelector('[data-action="create-task-tag"][data-tag-name="Roadmap"]')));
@@ -294,9 +300,14 @@
     const openedDateMenu = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="toggle-date-menu"]'));
     assert('date property menu action handled', openedDateMenu);
     assert('date property menu renders input', Boolean(tasksPanel.querySelector('#dateInput')));
-    tasksPanel.querySelector('#dateInput').value = '2026-05-04';
-    const dateInputHandled = await TabOutTasks.handleTaskInput({ target: tasksPanel.querySelector('#dateInput') });
+    assert('date property toggle exposes expanded state', tasksPanel.querySelector('[data-action="toggle-date-menu"]').getAttribute('aria-expanded') === 'true');
+    assert('date input has accessible label', tasksPanel.querySelector('#dateInput').getAttribute('aria-label') === 'Task date');
+    const validDateInput = tasksPanel.querySelector('#dateInput');
+    validDateInput.value = '2026-05-04';
+    validDateInput.setSelectionRange(7, 7);
+    const dateInputHandled = await TabOutTasks.handleTaskInput({ target: validDateInput });
     assert('date input handled', dateInputHandled);
+    assert('date input preserves caret position', tasksPanel.querySelector('#dateInput').selectionStart === 7);
     assert('valid date input updates composer date label', tasksPanel.querySelector('[data-action="toggle-date-menu"]').textContent.trim() === TabOutShared.formatDateLabel('2026-05-04'));
     await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="clear-task-date"]'));
     assert('clear date removes composer date label', tasksPanel.querySelector('[data-action="toggle-date-menu"]').textContent.trim() === 'Date');
@@ -305,6 +316,11 @@
     tasksPanel.querySelector('#dateInput').value = '2026-02-30';
     await TabOutTasks.handleTaskInput({ target: tasksPanel.querySelector('#dateInput') });
     assert('invalid date input does not set due date or crash', tasksPanel.querySelector('[data-action="toggle-date-menu"]').textContent.trim() === 'Date');
+    const invalidDateSubmitEvent = new Event('submit', { cancelable: true, bubbles: true });
+    Object.defineProperty(invalidDateSubmitEvent, 'target', { value: tasksPanel.querySelector('#taskComposer') });
+    const invalidDateSubmitHandled = await TabOutTasks.handleTaskSubmit(invalidDateSubmitEvent);
+    assert('invalid visible date blocks task submit', invalidDateSubmitHandled && tasksPanel.querySelector('#taskComposerError').textContent.includes('Use YYYY-MM-DD.'));
+    await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="clear-task-date"]'));
     assert('task input ignores archive search', !(await TabOutTasks.handleTaskInput({ target: { id: 'archiveSearch', value: 'ship' } })));
 
     tasksPanel.querySelector('#taskTitleInput').value = '  New task from form  ';

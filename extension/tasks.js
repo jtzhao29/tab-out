@@ -231,8 +231,8 @@ window.TabOutTasks = (() => {
       : '';
 
     return `
-      <div class="task-property-menu task-tag-menu" role="menu">
-        <input id="tagSearchInput" type="text" autocomplete="off" value="${safeSearch}" placeholder="Search or create tag">
+      <div class="task-property-menu task-tag-menu">
+        <input id="tagSearchInput" type="text" autocomplete="off" value="${safeSearch}" placeholder="Search or create tag" aria-label="Search or create tag">
         <div class="task-property-options">
           ${tagOptions || '<div class="task-property-empty">No matching tags.</div>'}
           ${createOption}
@@ -259,8 +259,8 @@ window.TabOutTasks = (() => {
     }).join('');
 
     return `
-      <div class="task-property-menu task-date-menu" role="menu">
-        <input id="dateInput" type="text" autocomplete="off" value="${safeCurrentInput}" placeholder="YYYY-MM-DD">
+      <div class="task-property-menu task-date-menu">
+        <input id="dateInput" type="text" autocomplete="off" value="${safeCurrentInput}" placeholder="YYYY-MM-DD" aria-label="Task date">
         <div class="task-date-shortcuts">
           <button type="button" data-action="set-task-date" data-date="${TabOutShared.escapeHtml(today)}">Today</button>
           <button type="button" data-action="set-task-date" data-date="${TabOutShared.escapeHtml(tomorrow)}">Tomorrow</button>
@@ -302,6 +302,8 @@ window.TabOutTasks = (() => {
     const tagLabel = tag ? tag.name : 'Tag';
     const dueLabel = TabOutShared.formatDateLabel(composerState.dueDate) || 'Date';
     const submitLabel = composerState.mode === 'edit' ? 'Save task' : 'Add task';
+    const tagExpanded = openPropertyMenu === 'tag' ? 'true' : 'false';
+    const dateExpanded = openPropertyMenu === 'date' ? 'true' : 'false';
 
     return `
       <form class="task-composer" id="taskComposer" novalidate>
@@ -314,8 +316,8 @@ window.TabOutTasks = (() => {
           <textarea id="taskNotesInput" rows="3" placeholder="Optional details">${safeNotes}</textarea>
         </label>
         <div class="task-composer-properties" aria-label="Task properties">
-          <button class="task-property-button" type="button" data-action="toggle-tag-menu">${TabOutShared.escapeHtml(tagLabel)}</button>
-          <button class="task-property-button" type="button" data-action="toggle-date-menu">${TabOutShared.escapeHtml(dueLabel)}</button>
+          <button class="task-property-button" type="button" data-action="toggle-tag-menu" aria-expanded="${tagExpanded}" aria-controls="taskPropertyMenu">${TabOutShared.escapeHtml(tagLabel)}</button>
+          <button class="task-property-button" type="button" data-action="toggle-date-menu" aria-expanded="${dateExpanded}" aria-controls="taskPropertyMenu">${TabOutShared.escapeHtml(dueLabel)}</button>
         </div>
         <div id="taskPropertyMenu">${renderTagMenu(tags)}${renderDateMenu()}</div>
         <div class="task-composer-error" id="taskComposerError" role="alert"></div>
@@ -376,9 +378,16 @@ window.TabOutTasks = (() => {
     }
   }
 
-  function focusById(id) {
+  function focusById(id, selectionStart = null, selectionEnd = null) {
     const input = document.getElementById(id);
-    if (input) input.focus();
+    if (!input) return;
+    input.focus();
+    if (
+      selectionStart !== null &&
+      typeof input.setSelectionRange === 'function'
+    ) {
+      input.setSelectionRange(selectionStart, selectionEnd ?? selectionStart);
+    }
   }
 
   async function handleTaskAction(actionEl) {
@@ -505,6 +514,10 @@ window.TabOutTasks = (() => {
     const errorEl = form.querySelector('#taskComposerError');
 
     try {
+      const visibleDateInput = String(dateInput || '').trim();
+      if (visibleDateInput && !TabOutShared.isValidDateString(visibleDateInput)) {
+        throw new Error('Use YYYY-MM-DD.');
+      }
       await saveTask({
         id: composerState.mode === 'edit' ? composerState.taskId : undefined,
         title: titleInput ? titleInput.value : '',
@@ -531,18 +544,23 @@ window.TabOutTasks = (() => {
 
     if (target.id === 'tagSearchInput') {
       syncComposerFromDom();
+      const selectionStart = target.selectionStart;
+      const selectionEnd = target.selectionEnd;
       tagSearch = target.value || '';
       await renderTasksDashboard();
-      focusById('tagSearchInput');
+      focusById('tagSearchInput', selectionStart, selectionEnd);
       return true;
     }
 
     if (target.id === 'dateInput') {
       syncComposerFromDom();
+      const selectionStart = target.selectionStart;
+      const selectionEnd = target.selectionEnd;
       dateInput = target.value || '';
-      if (TabOutShared.isValidDateString(dateInput)) composerState.dueDate = dateInput;
+      if (!dateInput.trim()) composerState.dueDate = '';
+      else if (TabOutShared.isValidDateString(dateInput)) composerState.dueDate = dateInput;
       await renderTasksDashboard();
-      focusById('dateInput');
+      focusById('dateInput', selectionStart, selectionEnd);
       return true;
     }
 
