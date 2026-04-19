@@ -1132,6 +1132,217 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   height: 14px;
 }
 
+/* ================================================================
+   TASK CALENDAR — structural styling before the final visual pass
+   ================================================================ */
+
+.tasks-panel,
+.calendar-panel {
+  margin-bottom: 28px;
+}
+
+.calendar-root {
+  position: relative;
+}
+
+.calendar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.calendar-controls button {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.calendar-controls button:hover {
+  color: var(--ink);
+  border-color: rgba(26, 22, 19, 0.2);
+}
+
+.calendar-controls-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.calendar-weekdays {
+  margin-bottom: 4px;
+}
+
+.calendar-weekday {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.calendar-day {
+  position: relative;
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(255, 253, 249, 0.72);
+  padding: 5px;
+  cursor: pointer;
+  outline: none;
+}
+
+.calendar-day:hover,
+.calendar-day:focus {
+  border-color: rgba(26, 22, 19, 0.16);
+  background: var(--card-bg);
+}
+
+.calendar-day.muted {
+  color: var(--muted);
+  opacity: 0.48;
+}
+
+.calendar-day.today {
+  border-color: rgba(200, 113, 58, 0.38);
+}
+
+.calendar-day.has-tasks {
+  background: var(--card-bg);
+}
+
+.calendar-day-number {
+  display: block;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.calendar-marks {
+  display: flex;
+  gap: 2px;
+  min-height: 5px;
+  margin-top: 7px;
+}
+
+.calendar-marks i,
+.popover-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--task-color, var(--task-tag-color, var(--muted)));
+  flex: 0 0 auto;
+}
+
+.calendar-popover {
+  position: absolute;
+  z-index: 30;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  width: 220px;
+  max-width: calc(100vw - 48px);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  box-shadow: 0 18px 44px rgba(26, 22, 19, 0.16);
+  padding: 10px;
+  color: var(--ink);
+}
+
+.calendar-day:hover .calendar-popover,
+.calendar-day:focus-within .calendar-popover,
+.calendar-day.popover-open .calendar-popover {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.popover-date {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.popover-date strong {
+  font-family: 'Newsreader', serif;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.popover-date span {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.popover-list {
+  display: grid;
+  gap: 5px;
+}
+
+.popover-task {
+  display: grid;
+  grid-template-columns: 5px 1fr;
+  align-items: start;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 6px;
+  text-align: left;
+}
+
+.popover-task:hover,
+.popover-task:focus {
+  background: rgba(154, 145, 138, 0.09);
+  outline: none;
+}
+
+.popover-task-title,
+.popover-task-tag {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popover-task-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.popover-task-tag {
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
 
 /* ================================================================
    SAVED FOR LATER — Checklist Column + Archive
