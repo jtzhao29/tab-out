@@ -185,10 +185,14 @@ window.TabOutTasks = (() => {
     }, {});
   }
 
+  function safeTagColor(color) {
+    return TAG_COLORS.includes(color) ? color : TAG_COLORS[0];
+  }
+
   function renderTagPill(tag) {
     if (!tag) return '';
     const safeName = TabOutShared.escapeHtml(tag.name);
-    const color = TAG_COLORS.includes(tag.color) ? tag.color : TAG_COLORS[0];
+    const color = safeTagColor(tag.color);
     const safeColor = TabOutShared.escapeHtml(color);
     return `<span class="task-tag-pill" style="--task-tag-color:${safeColor}">${safeName}</span>`;
   }
@@ -208,7 +212,7 @@ window.TabOutTasks = (() => {
     const tagOptions = matchingTags.map(tag => {
       const safeId = TabOutShared.escapeHtml(tag.id);
       const safeName = TabOutShared.escapeHtml(tag.name);
-      const color = TAG_COLORS.includes(tag.color) ? tag.color : TAG_COLORS[0];
+      const color = safeTagColor(tag.color);
       const safeColor = TabOutShared.escapeHtml(color);
       return `
         <button class="task-property-option" type="button" data-action="select-task-tag" data-tag-id="${safeId}" style="--task-tag-color:${safeColor}">
@@ -328,6 +332,39 @@ window.TabOutTasks = (() => {
       </form>`;
   }
 
+  function renderCalendarTaskPopover(dateString, tasksForDate = [], tagsById = {}) {
+    if (!tasksForDate.length) return '';
+
+    const dateLabel = TabOutShared.formatDateLabel(dateString) || dateString;
+    const taskCount = tasksForDate.length;
+    const taskItems = tasksForDate.map(task => {
+      const tag = task.tagId ? tagsById[task.tagId] : null;
+      const tagName = tag ? tag.name : 'No tag';
+      const color = safeTagColor(tag?.color);
+      const safeColor = TabOutShared.escapeHtml(color);
+      const safeId = TabOutShared.escapeHtml(task.id);
+      const safeTitle = TabOutShared.escapeHtml(task.title);
+      const safeTagName = TabOutShared.escapeHtml(tagName);
+      return `
+        <button class="popover-task" type="button" data-action="edit-task" data-task-id="${safeId}" style="--task-color:${safeColor};--task-tag-color:${safeColor}">
+          <i class="popover-dot" aria-hidden="true"></i>
+          <span>
+            <strong class="popover-task-title">${safeTitle}</strong>
+            <small class="popover-task-tag">${safeTagName}</small>
+          </span>
+        </button>`;
+    }).join('');
+
+    return `
+      <div class="calendar-popover">
+        <div class="popover-date">
+          <strong>${TabOutShared.escapeHtml(dateLabel)}</strong>
+          <span>${taskCount} task${taskCount === 1 ? '' : 's'}</span>
+        </div>
+        <div class="popover-list">${taskItems}</div>
+      </div>`;
+  }
+
   async function renderTasksDashboard() {
     await ensureStarterTags();
 
@@ -353,8 +390,52 @@ window.TabOutTasks = (() => {
   }
 
   async function renderCalendar() {
+    const root = document.getElementById('calendarRoot');
     const label = document.getElementById('calendarMonthLabel');
     if (label) label.textContent = TabOutShared.monthLabel(visibleMonth.year, visibleMonth.monthIndex);
+    if (!root) return;
+
+    const [tasks, tags] = await Promise.all([getTasks(), getTaskTags()]);
+    const tagsById = tagById(tags);
+    const grouped = groupTasksByDate(tasks);
+    const days = TabOutShared.buildMonthDays(visibleMonth.year, visibleMonth.monthIndex);
+    const today = TabOutShared.todayString();
+    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      .map(day => `<div class="calendar-weekday">${day}</div>`)
+      .join('');
+    const cells = days.map(day => {
+      const tasksForDate = grouped[day.dateString] || [];
+      const classes = [
+        'calendar-day',
+        day.inMonth ? '' : 'muted',
+        day.dateString === today ? 'today' : '',
+        tasksForDate.length ? 'has-tasks' : '',
+      ].filter(Boolean).join(' ');
+      const marks = tasksForDate.slice(0, 4).map(task => {
+        const tag = task.tagId ? tagsById[task.tagId] : null;
+        const color = safeTagColor(tag?.color);
+        const safeColor = TabOutShared.escapeHtml(color);
+        return `<i style="--task-color:${safeColor};--task-tag-color:${safeColor}" aria-hidden="true"></i>`;
+      }).join('');
+      const taskCount = tasksForDate.length;
+      const taskLabel = `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`;
+      const safeDate = TabOutShared.escapeHtml(day.dateString);
+      return `
+        <div class="${classes}" role="button" tabindex="0" data-action="toggle-calendar-day" data-date="${safeDate}" aria-label="${safeDate}, ${taskLabel}">
+          <span class="calendar-day-number">${TabOutShared.escapeHtml(day.day)}</span>
+          <span class="calendar-marks">${marks}</span>
+          ${renderCalendarTaskPopover(day.dateString, tasksForDate, tagsById)}
+        </div>`;
+    }).join('');
+
+    root.innerHTML = `
+      <div class="calendar-controls">
+        <button type="button" data-action="previous-calendar-month" aria-label="Previous month">Previous</button>
+        <span class="calendar-controls-label">${TabOutShared.escapeHtml(TabOutShared.monthLabel(visibleMonth.year, visibleMonth.monthIndex))}</span>
+        <button type="button" data-action="next-calendar-month" aria-label="Next month">Next</button>
+      </div>
+      <div class="calendar-weekdays">${weekdays}</div>
+      <div class="calendar-grid">${cells}</div>`;
   }
 
   function syncComposerFromDom() {
@@ -426,6 +507,31 @@ window.TabOutTasks = (() => {
       if (isEditingCompletedTask) resetComposer();
       await renderTasksDashboard();
       await renderCalendar();
+      return true;
+    }
+
+    if (action === 'previous-calendar-month') {
+      visibleMonth.monthIndex -= 1;
+      if (visibleMonth.monthIndex < 0) {
+        visibleMonth.monthIndex = 11;
+        visibleMonth.year -= 1;
+      }
+      await renderCalendar();
+      return true;
+    }
+
+    if (action === 'next-calendar-month') {
+      visibleMonth.monthIndex += 1;
+      if (visibleMonth.monthIndex > 11) {
+        visibleMonth.monthIndex = 0;
+        visibleMonth.year += 1;
+      }
+      await renderCalendar();
+      return true;
+    }
+
+    if (action === 'toggle-calendar-day') {
+      actionEl.classList.toggle('popover-open');
       return true;
     }
 
@@ -582,6 +688,7 @@ window.TabOutTasks = (() => {
     createTag,
     activeTasks,
     groupTasksByDate,
+    renderCalendarTaskPopover,
     renderTasksDashboard,
     renderCalendar,
     handleTaskAction,

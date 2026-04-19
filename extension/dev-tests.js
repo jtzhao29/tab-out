@@ -259,6 +259,112 @@
     assert('tasks dashboard updates open count', tasksPanel.querySelector('#tasksCount').textContent === '1 open');
     const renderedTaskTag = tasksPanel.querySelector('.task-tag-pill');
     assert('task tag color render is whitelisted', renderedTaskTag.getAttribute('style').includes(TabOutTasks.TAG_COLORS[0]) && !renderedTaskTag.getAttribute('style').includes('background'));
+
+    const calendarToday = TabOutShared.todayString();
+    await TabOutTasks.setTaskTags([
+      { id: 'tag_work', name: '<Work>', color: 'red;background:url(javascript:bad)', createdAt: '2026-04-18T08:00:00.000Z' },
+      { id: 'tag_clean', name: 'Clean & Safe', color: '#4f745e', createdAt: '2026-04-18T08:00:00.000Z' },
+    ]);
+    await TabOutTasks.setTasks([
+      {
+        id: 'calendar_one',
+        title: '<Calendar one>',
+        notes: '',
+        tagId: 'tag_work',
+        dueDate: calendarToday,
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+      {
+        id: 'calendar_two',
+        title: 'Calendar two',
+        notes: '',
+        tagId: 'tag_clean',
+        dueDate: calendarToday,
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+      {
+        id: 'calendar_done',
+        title: 'Done calendar task',
+        notes: '',
+        tagId: 'tag_clean',
+        dueDate: calendarToday,
+        completed: true,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: '2026-04-18T09:00:00.000Z',
+      },
+      {
+        id: 'calendar_undated',
+        title: 'Undated calendar task',
+        notes: '',
+        tagId: 'tag_clean',
+        dueDate: '',
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+    ]);
+    await TabOutTasks.renderCalendar();
+    assert('calendar renders previous control', Boolean(tasksPanel.querySelector('[data-action="previous-calendar-month"]')));
+    assert('calendar renders next control', Boolean(tasksPanel.querySelector('[data-action="next-calendar-month"]')));
+    assert('calendar renders controls month label', tasksPanel.querySelector('.calendar-controls-label').textContent === tasksPanel.querySelector('#calendarMonthLabel').textContent);
+    assert('calendar renders weekdays', tasksPanel.querySelectorAll('.calendar-weekday').length === 7);
+    assert('calendar renders 42 days', tasksPanel.querySelectorAll('.calendar-day').length === 42);
+    assert('calendar renders grid', Boolean(tasksPanel.querySelector('.calendar-grid')));
+    const todayCell = tasksPanel.querySelector(`.calendar-day[data-date="${calendarToday}"]`);
+    assert('calendar marks task date', todayCell.classList.contains('has-tasks'));
+    assert('calendar shows multiple task dots', todayCell.querySelectorAll('.calendar-marks i').length === 2);
+    assert('calendar popover lists first task as text', todayCell.querySelector('.calendar-popover').textContent.includes('<Calendar one>'));
+    assert('calendar popover lists second task', todayCell.querySelector('.calendar-popover').textContent.includes('Calendar two'));
+    assert('calendar popover shows task count', todayCell.querySelector('.popover-date').textContent.includes('2 tasks'));
+    assert('calendar popover excludes completed task', !todayCell.querySelector('.calendar-popover').textContent.includes('Done calendar task'));
+    assert('calendar popover excludes undated task', !todayCell.querySelector('.calendar-popover').textContent.includes('Undated calendar task'));
+    assert('calendar popover renders edit actions', todayCell.querySelectorAll('.popover-task[data-action="edit-task"][data-task-id]').length === 2);
+    assert('calendar aria label includes task count', todayCell.getAttribute('aria-label') === `${calendarToday}, 2 tasks`);
+    const calendarHtml = tasksPanel.querySelector('#calendarRoot').innerHTML;
+    assert('calendar rejects malicious tag color style', !calendarHtml.includes('red;background') && !calendarHtml.includes('javascript:bad'));
+    assert('calendar uses fallback color for invalid tag color', Boolean(todayCell.querySelector('.calendar-marks i[style*="#6c6386"], .calendar-marks i[style*="#8d887d"]')));
+    const toggledCalendarDay = await TabOutTasks.handleTaskAction(todayCell);
+    assert('calendar day toggle action handled', toggledCalendarDay);
+    assert('calendar day toggle opens popover', todayCell.classList.contains('popover-open'));
+    const originalCalendarLabel = tasksPanel.querySelector('#calendarMonthLabel').textContent;
+    const nextMonthHandled = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="next-calendar-month"]'));
+    assert('next calendar month action handled', nextMonthHandled);
+    assert('next calendar month updates label', tasksPanel.querySelector('#calendarMonthLabel').textContent !== originalCalendarLabel);
+    const previousMonthHandled = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="previous-calendar-month"]'));
+    assert('previous calendar month action handled', previousMonthHandled);
+    assert('previous calendar month restores label', tasksPanel.querySelector('#calendarMonthLabel').textContent === originalCalendarLabel);
+    await TabOutTasks.setTasks([
+      {
+        id: 'active_task',
+        title: '<Ship UI>',
+        notes: '',
+        tagId: 'tag_work',
+        dueDate: '2026-04-18',
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+      {
+        id: 'done_task',
+        title: 'Done task',
+        notes: '',
+        tagId: '',
+        dueDate: '',
+        completed: true,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: '2026-04-18T09:00:00.000Z',
+      },
+    ]);
     await TabOutTasks.setTaskTags([
       { id: 'tag_work', name: '<Work>', color: 'red;background:url(javascript:bad)', createdAt: '2026-04-18T08:00:00.000Z' },
       { id: 'tag_work_clean', name: 'Work', color: '#4f745e', createdAt: '2026-04-18T08:00:00.000Z' },
