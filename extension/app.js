@@ -1495,6 +1495,8 @@ document.addEventListener('click', (e) => {
 
 // ---- Archive search — filter archived items as user types ----
 document.addEventListener('input', async (e) => {
+  if (window.TabOutTasks && await window.TabOutTasks.handleTaskInput(e)) return;
+
   if (e.target.id !== 'archiveSearch') return;
 
   const q = e.target.value.trim().toLowerCase();

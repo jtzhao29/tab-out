@@ -259,10 +259,53 @@
     assert('tasks dashboard updates open count', tasksPanel.querySelector('#tasksCount').textContent === '1 open');
     const renderedTaskTag = tasksPanel.querySelector('.task-tag-pill');
     assert('task tag color render is whitelisted', renderedTaskTag.getAttribute('style').includes(TabOutTasks.TAG_COLORS[0]) && !renderedTaskTag.getAttribute('style').includes('background'));
+    await TabOutTasks.setTaskTags([
+      { id: 'tag_work', name: '<Work>', color: 'red;background:url(javascript:bad)', createdAt: '2026-04-18T08:00:00.000Z' },
+      { id: 'tag_work_clean', name: 'Work', color: '#4f745e', createdAt: '2026-04-18T08:00:00.000Z' },
+    ]);
 
     const openedComposer = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="open-task-composer"]'));
     assert('open task composer action handled', openedComposer);
     assert('open task composer renders form', Boolean(tasksPanel.querySelector('#taskComposer')));
+
+    tasksPanel.querySelector('#taskTitleInput').value = 'Draft survives';
+    tasksPanel.querySelector('#taskNotesInput').value = 'Notes survive';
+    const openedTagMenu = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="toggle-tag-menu"]'));
+    assert('tag property menu action handled', openedTagMenu);
+    assert('tag property menu renders search', Boolean(tasksPanel.querySelector('#tagSearchInput')));
+    tasksPanel.querySelector('#tagSearchInput').value = 'Roadmap';
+    const tagSearchHandled = await TabOutTasks.handleTaskInput({ target: tasksPanel.querySelector('#tagSearchInput') });
+    assert('tag search input handled', tagSearchHandled);
+    assert('tag search rerender preserves title draft', tasksPanel.querySelector('#taskTitleInput').value === 'Draft survives');
+    assert('tag search rerender preserves notes draft', tasksPanel.querySelector('#taskNotesInput').value === 'Notes survive');
+    assert('tag create option appears for unmatched query', Boolean(tasksPanel.querySelector('[data-action="create-task-tag"][data-tag-name="Roadmap"]')));
+    await TabOutTasks.handleTaskAction(tasksPanel.querySelectorAll('[data-action="set-new-tag-color"]')[2]);
+    await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="create-task-tag"][data-tag-name="Roadmap"]'));
+    assert('custom tag created from property menu', (await TabOutTasks.getTaskTags()).some(item => item.name === 'Roadmap' && item.color === TabOutTasks.TAG_COLORS[2]));
+    assert('composer tag label updates after custom tag create', tasksPanel.querySelector('[data-action="toggle-tag-menu"]').textContent.trim() === 'Roadmap');
+
+    await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="toggle-tag-menu"]'));
+    tasksPanel.querySelector('#tagSearchInput').value = 'work';
+    await TabOutTasks.handleTaskInput({ target: tasksPanel.querySelector('#tagSearchInput') });
+    assert('tag search filters existing tags case-insensitively', tasksPanel.querySelector('[data-action="select-task-tag"][data-tag-id="tag_work_clean"]').textContent.includes('Work'));
+    await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="select-task-tag"][data-tag-id="tag_work_clean"]'));
+    assert('select existing tag updates composer tag label', tasksPanel.querySelector('[data-action="toggle-tag-menu"]').textContent.trim() === 'Work');
+
+    const openedDateMenu = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="toggle-date-menu"]'));
+    assert('date property menu action handled', openedDateMenu);
+    assert('date property menu renders input', Boolean(tasksPanel.querySelector('#dateInput')));
+    tasksPanel.querySelector('#dateInput').value = '2026-05-04';
+    const dateInputHandled = await TabOutTasks.handleTaskInput({ target: tasksPanel.querySelector('#dateInput') });
+    assert('date input handled', dateInputHandled);
+    assert('valid date input updates composer date label', tasksPanel.querySelector('[data-action="toggle-date-menu"]').textContent.trim() === TabOutShared.formatDateLabel('2026-05-04'));
+    await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="clear-task-date"]'));
+    assert('clear date removes composer date label', tasksPanel.querySelector('[data-action="toggle-date-menu"]').textContent.trim() === 'Date');
+
+    await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="toggle-date-menu"]'));
+    tasksPanel.querySelector('#dateInput').value = '2026-02-30';
+    await TabOutTasks.handleTaskInput({ target: tasksPanel.querySelector('#dateInput') });
+    assert('invalid date input does not set due date or crash', tasksPanel.querySelector('[data-action="toggle-date-menu"]').textContent.trim() === 'Date');
+    assert('task input ignores archive search', !(await TabOutTasks.handleTaskInput({ target: { id: 'archiveSearch', value: 'ship' } })));
 
     tasksPanel.querySelector('#taskTitleInput').value = '  New task from form  ';
     tasksPanel.querySelector('#taskNotesInput').value = '  Details  ';

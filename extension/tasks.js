@@ -14,6 +14,10 @@ window.TabOutTasks = (() => {
 
   const now = new Date();
   let composerState = { mode: 'closed', taskId: null, title: '', notes: '', tagId: '', dueDate: '' };
+  let openPropertyMenu = '';
+  let tagSearch = '';
+  let dateInput = '';
+  let newTagColor = TAG_COLORS[0];
   const visibleMonth = { year: now.getFullYear(), monthIndex: now.getMonth() };
 
   async function getTasks() {
@@ -163,6 +167,10 @@ window.TabOutTasks = (() => {
       tagId: task.tagId || '',
       dueDate: task.dueDate || '',
     };
+    openPropertyMenu = '';
+    tagSearch = '';
+    dateInput = composerState.dueDate;
+    newTagColor = TAG_COLORS[0];
   }
 
   function focusTaskTitle() {
@@ -183,6 +191,84 @@ window.TabOutTasks = (() => {
     const color = TAG_COLORS.includes(tag.color) ? tag.color : TAG_COLORS[0];
     const safeColor = TabOutShared.escapeHtml(color);
     return `<span class="task-tag-pill" style="--task-tag-color:${safeColor}">${safeName}</span>`;
+  }
+
+  function renderTagMenu(tags = []) {
+    if (openPropertyMenu !== 'tag') return '';
+
+    const query = String(tagSearch || '').trim();
+    const lowerQuery = query.toLowerCase();
+    const safeSearch = TabOutShared.escapeHtml(tagSearch);
+    const matchingTags = tags.filter(tag =>
+      String(tag?.name || '').toLowerCase().includes(lowerQuery)
+    );
+    const hasExactMatch = tags.some(tag =>
+      String(tag?.name || '').trim().toLowerCase() === lowerQuery
+    );
+    const tagOptions = matchingTags.map(tag => {
+      const safeId = TabOutShared.escapeHtml(tag.id);
+      const safeName = TabOutShared.escapeHtml(tag.name);
+      const color = TAG_COLORS.includes(tag.color) ? tag.color : TAG_COLORS[0];
+      const safeColor = TabOutShared.escapeHtml(color);
+      return `
+        <button class="task-property-option" type="button" data-action="select-task-tag" data-tag-id="${safeId}" style="--task-tag-color:${safeColor}">
+          ${safeName}
+        </button>`;
+    }).join('');
+    const palette = TAG_COLORS.map(color => {
+      const safeColor = TabOutShared.escapeHtml(color);
+      const selectedClass = color === newTagColor ? ' selected' : '';
+      return `<button class="task-tag-color-swatch${selectedClass}" type="button" data-action="set-new-tag-color" data-tag-color="${safeColor}" style="--task-tag-color:${safeColor}" aria-label="Use tag color ${safeColor}"></button>`;
+    }).join('');
+    const createOption = query && !hasExactMatch
+      ? `
+        <div class="task-create-tag">
+          <button class="task-property-option" type="button" data-action="create-task-tag" data-tag-name="${TabOutShared.escapeHtml(query)}">
+            Create "${TabOutShared.escapeHtml(query)}"
+          </button>
+          <div class="task-tag-palette" aria-label="Tag color">${palette}</div>
+        </div>`
+      : '';
+
+    return `
+      <div class="task-property-menu task-tag-menu" role="menu">
+        <input id="tagSearchInput" type="text" autocomplete="off" value="${safeSearch}" placeholder="Search or create tag">
+        <div class="task-property-options">
+          ${tagOptions || '<div class="task-property-empty">No matching tags.</div>'}
+          ${createOption}
+        </div>
+      </div>`;
+  }
+
+  function renderDateMenu() {
+    if (openPropertyMenu !== 'date') return '';
+
+    const currentInput = dateInput || composerState.dueDate;
+    const today = TabOutShared.todayString();
+    const tomorrow = TabOutShared.addDays(today, 1);
+    const baseDate = composerState.dueDate || (TabOutShared.isValidDateString(dateInput) ? dateInput : today);
+    const base = new Date(`${baseDate}T00:00:00`);
+    const days = TabOutShared.buildMonthDays(base.getFullYear(), base.getMonth());
+    const monthLabel = TabOutShared.escapeHtml(TabOutShared.monthLabel(base.getFullYear(), base.getMonth()));
+    const safeCurrentInput = TabOutShared.escapeHtml(currentInput);
+    const dayButtons = days.map(day => {
+      const safeDate = TabOutShared.escapeHtml(day.dateString);
+      const mutedClass = day.inMonth ? '' : ' outside-month';
+      const selectedClass = day.dateString === composerState.dueDate ? ' selected' : '';
+      return `<button class="task-date-day${mutedClass}${selectedClass}" type="button" data-action="set-task-date" data-date="${safeDate}">${TabOutShared.escapeHtml(day.day)}</button>`;
+    }).join('');
+
+    return `
+      <div class="task-property-menu task-date-menu" role="menu">
+        <input id="dateInput" type="text" autocomplete="off" value="${safeCurrentInput}" placeholder="YYYY-MM-DD">
+        <div class="task-date-shortcuts">
+          <button type="button" data-action="set-task-date" data-date="${TabOutShared.escapeHtml(today)}">Today</button>
+          <button type="button" data-action="set-task-date" data-date="${TabOutShared.escapeHtml(tomorrow)}">Tomorrow</button>
+          <button type="button" data-action="clear-task-date">No date</button>
+        </div>
+        <div class="task-date-month-label">${monthLabel}</div>
+        <div class="task-date-grid">${dayButtons}</div>
+      </div>`;
   }
 
   function renderTaskRow(task, tagsById) {
@@ -228,9 +314,10 @@ window.TabOutTasks = (() => {
           <textarea id="taskNotesInput" rows="3" placeholder="Optional details">${safeNotes}</textarea>
         </label>
         <div class="task-composer-properties" aria-label="Task properties">
-          <button class="task-property-button" type="button" data-action="open-task-tag-menu">${TabOutShared.escapeHtml(tagLabel)}</button>
-          <button class="task-property-button" type="button" data-action="open-task-date-menu">${TabOutShared.escapeHtml(dueLabel)}</button>
+          <button class="task-property-button" type="button" data-action="toggle-tag-menu">${TabOutShared.escapeHtml(tagLabel)}</button>
+          <button class="task-property-button" type="button" data-action="toggle-date-menu">${TabOutShared.escapeHtml(dueLabel)}</button>
         </div>
+        <div id="taskPropertyMenu">${renderTagMenu(tags)}${renderDateMenu()}</div>
         <div class="task-composer-error" id="taskComposerError" role="alert"></div>
         <div class="task-composer-actions">
           <button class="task-submit-button" type="submit">${submitLabel}</button>
@@ -281,6 +368,19 @@ window.TabOutTasks = (() => {
     };
   }
 
+  function showComposerError(message) {
+    const errorEl = document.getElementById('taskComposerError');
+    if (errorEl) {
+      errorEl.textContent = message || 'Could not update task property.';
+      errorEl.style.display = 'block';
+    }
+  }
+
+  function focusById(id) {
+    const input = document.getElementById(id);
+    if (input) input.focus();
+  }
+
   async function handleTaskAction(actionEl) {
     if (!actionEl) return false;
     const action = actionEl.dataset.action;
@@ -320,6 +420,77 @@ window.TabOutTasks = (() => {
       return true;
     }
 
+    if (action === 'toggle-tag-menu') {
+      syncComposerFromDom();
+      openPropertyMenu = openPropertyMenu === 'tag' ? '' : 'tag';
+      await renderTasksDashboard();
+      focusById('tagSearchInput');
+      return true;
+    }
+
+    if (action === 'toggle-date-menu') {
+      syncComposerFromDom();
+      openPropertyMenu = openPropertyMenu === 'date' ? '' : 'date';
+      dateInput = composerState.dueDate;
+      await renderTasksDashboard();
+      focusById('dateInput');
+      return true;
+    }
+
+    if (action === 'select-task-tag') {
+      syncComposerFromDom();
+      composerState.tagId = actionEl.dataset.tagId || '';
+      openPropertyMenu = '';
+      tagSearch = '';
+      await renderTasksDashboard();
+      return true;
+    }
+
+    if (action === 'create-task-tag') {
+      syncComposerFromDom();
+      try {
+        const tag = await createTag(actionEl.dataset.tagName || '', newTagColor);
+        composerState.tagId = tag.id;
+        openPropertyMenu = '';
+        tagSearch = '';
+        newTagColor = TAG_COLORS[0];
+        await renderTasksDashboard();
+      } catch (err) {
+        showComposerError(err.message || 'Could not create tag.');
+      }
+      return true;
+    }
+
+    if (action === 'set-new-tag-color') {
+      syncComposerFromDom();
+      const color = actionEl.dataset.tagColor || '';
+      if (TAG_COLORS.includes(color)) newTagColor = color;
+      await renderTasksDashboard();
+      focusById('tagSearchInput');
+      return true;
+    }
+
+    if (action === 'set-task-date') {
+      syncComposerFromDom();
+      const date = actionEl.dataset.date || '';
+      if (TabOutShared.isValidDateString(date)) {
+        composerState.dueDate = date;
+        dateInput = date;
+      }
+      openPropertyMenu = '';
+      await renderTasksDashboard();
+      return true;
+    }
+
+    if (action === 'clear-task-date') {
+      syncComposerFromDom();
+      composerState.dueDate = '';
+      dateInput = '';
+      openPropertyMenu = '';
+      await renderTasksDashboard();
+      return true;
+    }
+
     return false;
   }
 
@@ -354,7 +525,29 @@ window.TabOutTasks = (() => {
     return true;
   }
 
-  function handleTaskInput() {}
+  async function handleTaskInput(event) {
+    const target = event?.target;
+    if (!target) return false;
+
+    if (target.id === 'tagSearchInput') {
+      syncComposerFromDom();
+      tagSearch = target.value || '';
+      await renderTasksDashboard();
+      focusById('tagSearchInput');
+      return true;
+    }
+
+    if (target.id === 'dateInput') {
+      syncComposerFromDom();
+      dateInput = target.value || '';
+      if (TabOutShared.isValidDateString(dateInput)) composerState.dueDate = dateInput;
+      await renderTasksDashboard();
+      focusById('dateInput');
+      return true;
+    }
+
+    return false;
+  }
 
   return {
     TAG_COLORS,
