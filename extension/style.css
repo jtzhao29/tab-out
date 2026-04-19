@@ -1198,31 +1198,43 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .calendar-day {
   position: relative;
   min-width: 0;
+}
+
+.calendar-day-trigger {
+  display: block;
+  width: 100%;
   min-height: 36px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: rgba(255, 253, 249, 0.72);
+  color: inherit;
+  font: inherit;
   padding: 5px;
   cursor: pointer;
   outline: none;
+  text-align: left;
 }
 
-.calendar-day:hover,
-.calendar-day:focus {
+.calendar-day:hover .calendar-day-trigger,
+.calendar-day-trigger:focus,
+.calendar-day.popover-open .calendar-day-trigger {
   border-color: rgba(26, 22, 19, 0.16);
   background: var(--card-bg);
 }
 
 .calendar-day.muted {
   color: var(--muted);
-  opacity: 0.48;
 }
 
-.calendar-day.today {
+.calendar-day.muted .calendar-day-trigger {
+  opacity: 0.58;
+}
+
+.calendar-day.today .calendar-day-trigger {
   border-color: rgba(200, 113, 58, 0.38);
 }
 
-.calendar-day.has-tasks {
+.calendar-day.has-tasks .calendar-day-trigger {
   background: var(--card-bg);
 }
 
@@ -1268,6 +1280,17 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   color: var(--ink);
 }
 
+.calendar-day:nth-child(7n+1) .calendar-popover {
+  left: 0;
+  transform: translateY(4px);
+}
+
+.calendar-day:nth-child(7n) .calendar-popover {
+  left: auto;
+  right: 0;
+  transform: translateY(4px);
+}
+
 .calendar-day:hover .calendar-popover,
 .calendar-day:focus-within .calendar-popover,
 .calendar-day.popover-open .calendar-popover {
@@ -1275,6 +1298,15 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   opacity: 1;
   pointer-events: auto;
   transform: translate(-50%, 0);
+}
+
+.calendar-day:nth-child(7n+1):hover .calendar-popover,
+.calendar-day:nth-child(7n+1):focus-within .calendar-popover,
+.calendar-day:nth-child(7n+1).popover-open .calendar-popover,
+.calendar-day:nth-child(7n):hover .calendar-popover,
+.calendar-day:nth-child(7n):focus-within .calendar-popover,
+.calendar-day:nth-child(7n).popover-open .calendar-popover {
+  transform: translateY(0);
 }
 
 .popover-date {
@@ -1367,8 +1399,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   flex-shrink: 0;
   position: sticky;
   top: 32px;
-  max-height: calc(100vh - 64px);
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .deferred-column {

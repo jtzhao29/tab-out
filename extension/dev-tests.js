@@ -222,9 +222,12 @@
     assert('calendar excludes undated and completed tasks', grouped['2026-04-18'].length === 1);
     assert('activeTasks filters completed', TabOutTasks.activeTasks([{ completed: false }, { completed: true }]).length === 1);
 
+    const personalRail = document.createElement('aside');
+    personalRail.className = 'personal-rail';
     const tasksPanel = document.createElement('section');
     tasksPanel.innerHTML = '<span id="tasksCount"></span><div id="tasksRoot"></div><span id="calendarMonthLabel"></span><div id="calendarRoot"></div>';
-    document.body.appendChild(tasksPanel);
+    personalRail.appendChild(tasksPanel);
+    document.body.appendChild(personalRail);
     await TabOutTasks.setTaskTags([
       { id: 'tag_work', name: '<Work>', color: 'red;background:url(javascript:bad)', createdAt: '2026-04-18T08:00:00.000Z' },
     ]);
@@ -265,6 +268,12 @@
       { id: 'tag_work', name: '<Work>', color: 'red;background:url(javascript:bad)', createdAt: '2026-04-18T08:00:00.000Z' },
       { id: 'tag_clean', name: 'Clean & Safe', color: '#4f745e', createdAt: '2026-04-18T08:00:00.000Z' },
     ]);
+    await TabOutTasks.setTasks([]);
+    await TabOutTasks.renderCalendar();
+    const edgeCells = Array.from(tasksPanel.querySelectorAll('.calendar-day:nth-child(7n+1), .calendar-day:nth-child(7n)'))
+      .filter(cell => cell.dataset.date !== calendarToday);
+    const leftEdgeDate = edgeCells[0].dataset.date;
+    const rightEdgeDate = edgeCells.find(cell => cell.matches(':nth-child(7n)')).dataset.date;
     await TabOutTasks.setTasks([
       {
         id: 'calendar_one',
@@ -310,8 +319,31 @@
         updatedAt: '2026-04-18T08:00:00.000Z',
         completedAt: null,
       },
+      {
+        id: 'calendar_left_edge',
+        title: 'Left edge task',
+        notes: '',
+        tagId: 'tag_clean',
+        dueDate: leftEdgeDate,
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+      {
+        id: 'calendar_right_edge',
+        title: 'Right edge task',
+        notes: '',
+        tagId: 'tag_clean',
+        dueDate: rightEdgeDate,
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
     ]);
     await TabOutTasks.renderCalendar();
+    assert('personal rail allows calendar popovers to escape clipping', getComputedStyle(personalRail).overflowY === 'visible');
     assert('calendar renders previous control', Boolean(tasksPanel.querySelector('[data-action="previous-calendar-month"]')));
     assert('calendar renders next control', Boolean(tasksPanel.querySelector('[data-action="next-calendar-month"]')));
     assert('calendar renders controls month label', tasksPanel.querySelector('.calendar-controls-label').textContent === tasksPanel.querySelector('#calendarMonthLabel').textContent);
@@ -319,7 +351,9 @@
     assert('calendar renders 42 days', tasksPanel.querySelectorAll('.calendar-day').length === 42);
     assert('calendar renders grid', Boolean(tasksPanel.querySelector('.calendar-grid')));
     const todayCell = tasksPanel.querySelector(`.calendar-day[data-date="${calendarToday}"]`);
+    const todayTrigger = todayCell.querySelector('[data-action="toggle-calendar-day"]');
     const todayPopover = todayCell.querySelector('.calendar-popover');
+    assert('calendar day trigger is native button', todayTrigger.tagName === 'BUTTON' && todayTrigger.type === 'button');
     assert('calendar marks task date', todayCell.classList.contains('has-tasks'));
     assert('calendar shows multiple task dots', todayCell.querySelectorAll('.calendar-marks i').length === 2);
     assert('calendar popover lists first task as text', todayPopover.textContent.includes('<Calendar one>'));
@@ -328,15 +362,27 @@
     assert('calendar popover excludes completed task', !todayPopover.textContent.includes('Done calendar task'));
     assert('calendar popover excludes undated task', !todayPopover.textContent.includes('Undated calendar task'));
     assert('calendar popover renders edit actions', todayCell.querySelectorAll('.popover-task[data-action="edit-task"][data-task-id]').length === 2);
-    assert('calendar aria label includes task count', todayCell.getAttribute('aria-label') === `${calendarToday}, 2 tasks`);
+    assert('calendar aria label includes task count', todayTrigger.getAttribute('aria-label') === `${calendarToday}, 2 tasks`);
     const calendarHtml = tasksPanel.querySelector('#calendarRoot').innerHTML;
     assert('calendar rejects malicious tag color style', !calendarHtml.includes('red;background') && !calendarHtml.includes('javascript:bad'));
     assert('calendar uses fallback color for invalid tag color', Boolean(todayCell.querySelector('.calendar-marks i[style*="#6c6386"], .calendar-marks i[style*="#8d887d"]')));
     assert('calendar popover is hidden before open', getComputedStyle(todayPopover).visibility === 'hidden');
-    const toggledCalendarDay = await TabOutTasks.handleTaskAction(todayCell);
+    const toggledCalendarDay = await TabOutTasks.handleTaskAction(todayTrigger);
     assert('calendar day toggle action handled', toggledCalendarDay);
     assert('calendar day toggle opens popover', todayCell.classList.contains('popover-open'));
+    assert('calendar day toggle updates expanded state', todayTrigger.getAttribute('aria-expanded') === 'true');
     assert('calendar popover is visible after open', getComputedStyle(todayPopover).visibility === 'visible');
+    const railRect = personalRail.getBoundingClientRect();
+    const leftEdgeCell = tasksPanel.querySelector(`.calendar-day[data-date="${leftEdgeDate}"]`);
+    const leftEdgeTrigger = leftEdgeCell.querySelector('[data-action="toggle-calendar-day"]');
+    await TabOutTasks.handleTaskAction(leftEdgeTrigger);
+    const leftPopoverRect = leftEdgeCell.querySelector('.calendar-popover').getBoundingClientRect();
+    assert('calendar left edge popover stays inside rail', leftPopoverRect.left >= railRect.left && leftPopoverRect.right <= railRect.right);
+    const rightEdgeCell = tasksPanel.querySelector(`.calendar-day[data-date="${rightEdgeDate}"]`);
+    const rightEdgeTrigger = rightEdgeCell.querySelector('[data-action="toggle-calendar-day"]');
+    await TabOutTasks.handleTaskAction(rightEdgeTrigger);
+    const rightPopoverRect = rightEdgeCell.querySelector('.calendar-popover').getBoundingClientRect();
+    assert('calendar right edge popover stays inside rail', rightPopoverRect.left >= railRect.left && rightPopoverRect.right <= railRect.right);
     const originalCalendarLabel = tasksPanel.querySelector('#calendarMonthLabel').textContent;
     const nextMonthHandled = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="next-calendar-month"]'));
     assert('next calendar month action handled', nextMonthHandled);

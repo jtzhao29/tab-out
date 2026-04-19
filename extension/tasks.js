@@ -189,6 +189,10 @@ window.TabOutTasks = (() => {
     return TAG_COLORS.includes(color) ? color : TAG_COLORS[0];
   }
 
+  function calendarPopoverId(dateString) {
+    return `calendar-popover-${String(dateString || '').replace(/[^a-z0-9_-]/gi, '')}`;
+  }
+
   function renderTagPill(tag) {
     if (!tag) return '';
     const safeName = TabOutShared.escapeHtml(tag.name);
@@ -337,6 +341,7 @@ window.TabOutTasks = (() => {
 
     const dateLabel = TabOutShared.formatDateLabel(dateString) || dateString;
     const taskCount = tasksForDate.length;
+    const safePopoverId = TabOutShared.escapeHtml(calendarPopoverId(dateString));
     const taskItems = tasksForDate.map(task => {
       const tag = task.tagId ? tagsById[task.tagId] : null;
       const tagName = tag ? tag.name : 'No tag';
@@ -356,7 +361,7 @@ window.TabOutTasks = (() => {
     }).join('');
 
     return `
-      <div class="calendar-popover">
+      <div class="calendar-popover" id="${safePopoverId}">
         <div class="popover-date">
           <strong>${TabOutShared.escapeHtml(dateLabel)}</strong>
           <span>${taskCount} task${taskCount === 1 ? '' : 's'}</span>
@@ -420,10 +425,16 @@ window.TabOutTasks = (() => {
       const taskCount = tasksForDate.length;
       const taskLabel = `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`;
       const safeDate = TabOutShared.escapeHtml(day.dateString);
+      const safePopoverId = TabOutShared.escapeHtml(calendarPopoverId(day.dateString));
+      const popupAttrs = taskCount
+        ? ` aria-expanded="false" aria-controls="${safePopoverId}"`
+        : '';
       return `
-        <div class="${classes}" role="button" tabindex="0" data-action="toggle-calendar-day" data-date="${safeDate}" aria-label="${safeDate}, ${taskLabel}">
-          <span class="calendar-day-number">${TabOutShared.escapeHtml(day.day)}</span>
-          <span class="calendar-marks">${marks}</span>
+        <div class="${classes}" data-date="${safeDate}">
+          <button class="calendar-day-trigger" type="button" data-action="toggle-calendar-day" data-date="${safeDate}" aria-label="${safeDate}, ${taskLabel}"${popupAttrs}>
+            <span class="calendar-day-number">${TabOutShared.escapeHtml(day.day)}</span>
+            <span class="calendar-marks">${marks}</span>
+          </button>
           ${renderCalendarTaskPopover(day.dateString, tasksForDate, tagsById)}
         </div>`;
     }).join('');
@@ -531,7 +542,19 @@ window.TabOutTasks = (() => {
     }
 
     if (action === 'toggle-calendar-day') {
-      actionEl.classList.toggle('popover-open');
+      const dayEl = actionEl.closest('.calendar-day') || actionEl;
+      const shouldOpen = !dayEl.classList.contains('popover-open');
+      const calendarRoot = dayEl.closest('.calendar-root') || document;
+      calendarRoot.querySelectorAll('.calendar-day.popover-open').forEach(openDay => {
+        if (openDay === dayEl) return;
+        openDay.classList.remove('popover-open');
+        const openTrigger = openDay.querySelector('[data-action="toggle-calendar-day"]');
+        if (openTrigger?.hasAttribute('aria-expanded')) openTrigger.setAttribute('aria-expanded', 'false');
+      });
+      dayEl.classList.toggle('popover-open', shouldOpen);
+      if (actionEl.hasAttribute('aria-expanded')) {
+        actionEl.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+      }
       return true;
     }
 
