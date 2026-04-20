@@ -106,6 +106,68 @@
     assert('settings combined greeting keeps time heading', combinedGreeting.heading === 'Good morning');
     assert('settings combined greeting exposes custom subheading', combinedGreeting.subheading === 'Build calmly');
 
+    const settingsHost = document.createElement('div');
+    settingsHost.innerHTML = `
+      <main class="container" id="dashboardView">
+        <header>
+          <div class="header-left">
+            <h1 id="greeting"></h1>
+            <div class="date" id="dateDisplay"></div>
+          </div>
+          <button id="settingsOpenButton" data-action="open-settings" aria-label="Open settings">Settings</button>
+        </header>
+        <section id="favoritesShelf"></section>
+        <section id="openTabsSection"></section>
+        <section id="tasksPanel"></section>
+        <section id="calendarPanel"></section>
+        <section id="deferredColumn"></section>
+      </main>
+      <main class="settings-page" id="settingsPage" hidden></main>`;
+    document.body.appendChild(settingsHost);
+
+    const hiddenSections = TabOutSettings.applySectionVisibility({
+      sections: { favorites: false, openTabs: true, tasks: false, calendar: true, savedForLater: false },
+    });
+    assert('settings section visibility hides favorites', document.getElementById('favoritesShelf').hidden === true);
+    assert('settings section visibility keeps open tabs', document.getElementById('openTabsSection').hidden === false);
+    assert('settings section visibility hides tasks', document.getElementById('tasksPanel').hidden === true);
+    assert('settings section visibility returns normalized settings', hiddenSections.sections.calendar === true);
+
+    TabOutSettings.renderGreeting({
+      settings: { greetingMode: 'auto-plus-custom', customGreeting: 'Plan first', sections: {} },
+      autoGreeting: 'Good afternoon',
+      dateText: 'Monday, April 20, 2026',
+    });
+    assert('settings render greeting writes heading', document.getElementById('greeting').textContent === 'Good afternoon');
+    assert('settings render greeting writes custom message', document.querySelector('.custom-greeting-message').textContent === 'Plan first');
+    assert('settings render greeting writes date', document.getElementById('dateDisplay').textContent === 'Monday, April 20, 2026');
+
+    const settingsPageState = {
+      greetingMode: 'custom',
+      customGreeting: 'Deep work',
+      sections: { favorites: true, openTabs: false, tasks: true, calendar: false, savedForLater: true },
+    };
+    TabOutSettings.renderSettingsPage(settingsPageState);
+    assert('settings page renders full page title', document.getElementById('settingsPage').textContent.includes('Settings'));
+    assert('settings page custom greeting input is populated', document.getElementById('settingsCustomGreeting').value === 'Deep work');
+    assert('settings page renders open tabs toggle', Boolean(document.querySelector('[data-setting-section="openTabs"]')));
+    assert('settings page reflects disabled section', document.querySelector('[data-setting-section="openTabs"]').getAttribute('aria-pressed') === 'false');
+
+    await TabOutSettings.saveSettings(settingsPageState);
+    await TabOutSettings.openSettingsPage();
+    assert('settings open action hides dashboard', document.getElementById('dashboardView').hidden === true);
+    assert('settings open action shows settings page', document.getElementById('settingsPage').hidden === false);
+    const settingsInput = document.getElementById('settingsCustomGreeting');
+    settingsInput.value = 'Review tabs';
+    const settingsInputHandled = await TabOutSettings.handleSettingsInput({ target: settingsInput });
+    assert('settings input handler saves custom greeting', settingsInputHandled && (await TabOutSettings.getSettings()).customGreeting === 'Review tabs');
+    const sectionToggle = document.querySelector('[data-action="toggle-dashboard-section"][data-setting-section="favorites"]');
+    const sectionToggleHandled = await TabOutSettings.handleSettingsAction(sectionToggle);
+    assert('settings section toggle action handled', sectionToggleHandled);
+    assert('settings section toggle updates storage', (await TabOutSettings.getSettings()).sections.favorites === false);
+    await TabOutSettings.closeSettingsPage();
+    assert('settings close action restores dashboard', document.getElementById('dashboardView').hidden === false && document.getElementById('settingsPage').hidden === true);
+
     const favorite = TabOutFavorites.normalizeFavoriteInput({ title: '', url: 'github.com', accentColor: '' });
     assert('favorite title defaults to hostname', favorite.title === 'github.com');
     assert('favorite hostname set', favorite.hostname === 'github.com');

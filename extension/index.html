@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container">
+<div class="container" id="dashboardView">
 
 
 
@@ -25,6 +25,14 @@
       <h1 id="greeting"></h1>
       <!-- "Friday, April 4, 2026" — written by getDateDisplay() in app.js -->
       <div class="date" id="dateDisplay"></div>
+    </div>
+    <div class="header-actions">
+      <button class="settings-open-button" type="button" data-action="open-settings" aria-label="Open settings">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.662.834.086.036.172.074.256.115.335.16.73.126 1.038-.086l1.053-.724a1.125 1.125 0 0 1 1.45.12l1.833 1.833c.389.389.44.997.12 1.45l-.724 1.053c-.212.308-.246.703-.086 1.038.041.084.079.17.115.256.148.349.46.599.834.662l1.281.213c.542.09.94.56.94 1.11v2.593c0 .55-.398 1.02-.94 1.11l-1.281.213c-.374.063-.686.313-.834.662a6.7 6.7 0 0 1-.115.256c-.16.335-.126.73.086 1.038l.724 1.053c.32.453.269 1.061-.12 1.45l-1.833 1.833a1.125 1.125 0 0 1-1.45.12l-1.053-.724c-.308-.212-.703-.246-1.038-.086a6.7 6.7 0 0 1-.256.115c-.349.148-.599.46-.662.834l-.213 1.281c-.09.542-.56.94-1.11.94h-2.593c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.662-.834a6.7 6.7 0 0 1-.256-.115c-.335-.16-.73-.126-1.038.086l-1.053.724a1.125 1.125 0 0 1-1.45-.12L2.97 19.33a1.125 1.125 0 0 1-.12-1.45l.724-1.053c.212-.308.246-.703.086-1.038a6.7 6.7 0 0 1-.115-.256c-.148-.349-.46-.599-.834-.662l-1.281-.213A1.125 1.125 0 0 1 .49 13.55v-2.593c0-.55.398-1.02.94-1.11l1.281-.213c.374-.063.686-.313.834-.662.036-.086.074-.172.115-.256.16-.335.126-.73-.086-1.038L2.85 6.625a1.125 1.125 0 0 1 .12-1.45L4.803 3.34a1.125 1.125 0 0 1 1.45-.12l1.053.724c.308.212.703.246 1.038.086.084-.041.17-.079.256-.115.349-.148.599-.46.662-.834l.332-1.141Z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        </svg>
+      </button>
     </div>
   </header>
 
@@ -150,6 +158,8 @@
 
 </div><!-- end .container -->
 
+<main class="container settings-page" id="settingsPage" hidden aria-label="Settings"></main>
+
 <!-- ================================================================
      FAVORITE EDITOR — add/edit local favorite websites
      ================================================================ -->
@@ -206,6 +216,7 @@
 <script src="shared.js"></script>
 <script src="favorites.js"></script>
 <script src="tasks.js"></script>
+<script src="settings.js"></script>
 
 <!-- Main dashboard logic — loads last so the DOM is ready -->
 <script src="app.js"></script>

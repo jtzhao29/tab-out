@@ -1036,16 +1036,33 @@ function renderArchiveItem(item) {
  * 6. Renders the "Saved for Later" checklist
  */
 async function renderStaticDashboard() {
-  // --- Header ---
+  // --- Header and settings ---
+  const dashboardSettings = window.TabOutSettings
+    ? await window.TabOutSettings.getSettings()
+    : null;
   const greetingEl = document.getElementById('greeting');
   const dateEl     = document.getElementById('dateDisplay');
-  if (greetingEl) greetingEl.textContent = getGreeting();
-  if (dateEl)     dateEl.textContent     = getDateDisplay();
+  if (window.TabOutSettings) {
+    window.TabOutSettings.renderGreeting({
+      settings: dashboardSettings,
+      autoGreeting: getGreeting(),
+      dateText: getDateDisplay(),
+    });
+  } else {
+    if (greetingEl) greetingEl.textContent = getGreeting();
+    if (dateEl)     dateEl.textContent     = getDateDisplay();
+  }
 
-  try {
-    if (window.TabOutFavorites) await window.TabOutFavorites.renderFavorites();
-  } catch (err) {
-    console.warn('[tab-out] Favorites render failed:', err);
+  if (window.TabOutSettings && dashboardSettings) {
+    window.TabOutSettings.applySectionVisibility(dashboardSettings);
+  }
+
+  if (dashboardSettings?.sections?.favorites !== false) {
+    try {
+      if (window.TabOutFavorites) await window.TabOutFavorites.renderFavorites();
+    } catch (err) {
+      console.warn('[tab-out] Favorites render failed:', err);
+    }
   }
 
   // --- Fetch tabs ---
@@ -1170,10 +1187,13 @@ async function renderStaticDashboard() {
   const openTabsSectionCount = document.getElementById('openTabsSectionCount');
   const openTabsSectionTitle = document.getElementById('openTabsSectionTitle');
 
-  if (domainGroups.length > 0 && openTabsSection) {
+  if (dashboardSettings?.sections?.openTabs === false) {
+    if (openTabsSection) openTabsSection.hidden = true;
+  } else if (domainGroups.length > 0 && openTabsSection) {
     if (openTabsSectionTitle) openTabsSectionTitle.textContent = 'Open tabs';
     openTabsSectionCount.innerHTML = `${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''} &nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:3px 10px;">${ICONS.close} Close all ${realTabs.length} tabs</button>`;
     openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
+    openTabsSection.hidden = false;
     openTabsSection.style.display = 'block';
   } else if (openTabsSection) {
     openTabsSection.style.display = 'none';
@@ -1187,12 +1207,21 @@ async function renderStaticDashboard() {
   checkTabOutDupes();
 
   // --- Render "Saved for Later" column ---
-  await renderDeferredColumn();
+  if (dashboardSettings?.sections?.savedForLater !== false) {
+    await renderDeferredColumn();
+  } else {
+    const deferredColumn = document.getElementById('deferredColumn');
+    if (deferredColumn) deferredColumn.hidden = true;
+  }
 
   if (window.TabOutTasks) {
     try {
-      await window.TabOutTasks.renderTasksDashboard();
-      await window.TabOutTasks.renderCalendar();
+      if (dashboardSettings?.sections?.tasks !== false) {
+        await window.TabOutTasks.renderTasksDashboard();
+      }
+      if (dashboardSettings?.sections?.calendar !== false) {
+        await window.TabOutTasks.renderCalendar();
+      }
     } catch (err) {
       console.warn('[tab-out] Tasks render failed:', err);
       const root = document.getElementById('tasksRoot');
@@ -1200,6 +1229,10 @@ async function renderStaticDashboard() {
       if (root) root.innerHTML = '<div class="tasks-empty">Tasks are unavailable right now.</div>';
       if (count) count.textContent = '';
     }
+  }
+
+  if (window.TabOutSettings && dashboardSettings) {
+    window.TabOutSettings.applySectionVisibility(dashboardSettings);
   }
 }
 
@@ -1225,6 +1258,10 @@ document.addEventListener('click', async (e) => {
 
   if (window.TabOutFavorites && await window.TabOutFavorites.handleFavoriteAction(actionEl)) return;
   if (window.TabOutTasks && await window.TabOutTasks.handleTaskAction(actionEl)) return;
+  if (window.TabOutSettings && await window.TabOutSettings.handleSettingsAction(actionEl)) {
+    if (action === 'close-settings') await renderStaticDashboard();
+    return;
+  }
 
   // ---- Close duplicate Tab Out tabs ----
   if (action === 'close-tabout-dupes') {
@@ -1500,6 +1537,7 @@ document.addEventListener('click', (e) => {
 // ---- Archive search — filter archived items as user types ----
 document.addEventListener('input', async (e) => {
   if (window.TabOutTasks && await window.TabOutTasks.handleTaskInput(e)) return;
+  if (window.TabOutSettings && await window.TabOutSettings.handleSettingsInput(e)) return;
 
   if (e.target.id !== 'archiveSearch') return;
 

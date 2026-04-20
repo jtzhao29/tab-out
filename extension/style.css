@@ -2292,9 +2292,241 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   margin-top: 4px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-open-button,
+.settings-back-button {
+  border: 1px solid rgba(26, 22, 19, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.72);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-open-button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.settings-open-button:hover,
+.settings-open-button:focus {
+  border-color: rgba(26, 22, 19, 0.2);
+  background: var(--card-bg);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.settings-open-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.settings-back-button {
+  padding: 9px 13px;
+}
+
+.custom-greeting-message {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.settings-page[hidden],
+#dashboardView[hidden] {
+  display: none;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 34px;
+}
+
+.settings-header h1 {
+  font-family: 'Newsreader', serif;
+  font-size: 34px;
+  font-weight: 300;
+  margin-bottom: 4px;
+}
+
+.settings-header .date {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.settings-shell {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.72fr) minmax(0, 2fr);
+  gap: 36px;
+}
+
+.settings-nav {
+  border: 1px solid rgba(154, 145, 138, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.54);
+  padding: 16px;
+}
+
+.settings-nav h2 {
+  font-family: 'Newsreader', serif;
+  font-size: 25px;
+  font-style: italic;
+  font-weight: 400;
+  margin: 0 0 14px;
+}
+
+.settings-nav a {
+  display: block;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 8px 0;
+  text-decoration: none;
+}
+
+.settings-nav a:hover,
+.settings-nav a:focus {
+  color: var(--ink);
+  outline: none;
+}
+
+.settings-panel {
+  border: 1px solid rgba(154, 145, 138, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.62);
+  margin-bottom: 18px;
+  padding: 18px;
+}
+
+.settings-panel h2 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 7px;
+}
+
+.settings-panel p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0 0 15px;
+}
+
+.settings-field {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 12px;
+}
+
+.settings-field select,
+.settings-field textarea {
+  width: 100%;
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 10px 11px;
+  outline: none;
+}
+
+.settings-field textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.settings-field select:focus,
+.settings-field textarea:focus {
+  border-color: rgba(26, 22, 19, 0.25);
+}
+
+.settings-toggle-list {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(154, 145, 138, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.52);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  padding: 10px 11px;
+}
+
+.settings-toggle:hover,
+.settings-toggle:focus {
+  border-color: rgba(26, 22, 19, 0.2);
+  background: var(--card-bg);
+  outline: none;
+}
+
+.settings-switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(154, 145, 138, 0.35);
+  transition: background 0.16s ease;
+}
+
+.settings-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  box-shadow: 0 2px 6px rgba(26, 22, 19, 0.12);
+}
+
+.settings-toggle.enabled .settings-switch {
+  background: var(--accent-sage);
+}
+
+.settings-toggle.enabled .settings-switch::after {
+  left: auto;
+  right: 3px;
+}
+
+.settings-error {
+  color: var(--status-abandoned);
+  font-size: 12px;
+  margin-top: 10px;
+}
+
 @media (max-width: 1100px) {
   .favorites-shelf,
-  .dashboard-columns {
+  .dashboard-columns,
+  .settings-shell {
     display: block;
   }
 
@@ -2320,9 +2552,18 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   .calendar-popover {
     width: min(260px, calc(100vw - 48px));
   }
+
+  .settings-nav {
+    margin-bottom: 18px;
+  }
 }
 
 @media (max-width: 640px) {
+  header,
+  .settings-header {
+    gap: 16px;
+  }
+
   .favorites-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
