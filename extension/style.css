@@ -1779,6 +1779,14 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   height: 23px;
 }
 
+.favorite-card.has-logo .favorite-initials {
+  display: none;
+}
+
+.favorite-icon img[hidden] {
+  display: none;
+}
+
 .favorite-title {
   margin-top: 14px;
   font-size: 14px;

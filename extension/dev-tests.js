@@ -174,6 +174,31 @@
     assert('favorite color inferred', favorite.accentColor === '#24292f');
     const fallbackFavorite = TabOutFavorites.normalizeFavoriteInput({ title: 'Docs', url: 'https://example.com/docs', accentColor: 'blue' });
     assert('favorite invalid color falls back', fallbackFavorite.accentColor === TabOutShared.inferAccentColor('example.com'));
+    assert('baidu host color fallback is blue', TabOutShared.inferAccentColor('baidu.com') === '#1c6fc8');
+    assert('bilibili host color fallback is cyan', TabOutShared.inferAccentColor('bilibili.com') === '#00a1d6');
+
+    const baiduPixels = [
+      255, 255, 255, 255,
+      28, 111, 200, 255,
+      28, 111, 200, 255,
+      28, 111, 200, 255,
+      130, 130, 130, 255,
+    ];
+    const bilibiliPixels = [
+      255, 255, 255, 255,
+      0, 161, 214, 255,
+      0, 161, 214, 255,
+      0, 161, 214, 255,
+      220, 220, 220, 255,
+    ];
+    assert('favorite pixel extraction chooses blue', TabOutFavorites.extractAccentFromPixels(baiduPixels) === '#1c6fc8');
+    assert('favorite pixel extraction chooses cyan', TabOutFavorites.extractAccentFromPixels(bilibiliPixels) === '#00a1d6');
+    assert('favorite pixel extraction ignores neutral pixels', TabOutFavorites.extractAccentFromPixels([255,255,255,255, 180,180,180,255]) === '');
+
+    const manualFavorite = TabOutFavorites.normalizeFavoriteInput({ title: 'Manual', url: 'baidu.com', accentColor: '#123abc' });
+    assert('favorite manual color sets manual source', manualFavorite.accentColor === '#123abc' && manualFavorite.accentSource === 'manual');
+    const inferredFavorite = TabOutFavorites.normalizeFavoriteInput({ title: 'Auto', url: 'bilibili.com', accentColor: '' });
+    assert('favorite inferred color stores source', inferredFavorite.accentColor === '#00a1d6' && inferredFavorite.accentSource === 'host');
 
     window.__tabOutDevStorage.favorites = [];
     const savedFavorite = await TabOutFavorites.saveFavorite({ title: '  GitHub  ', url: 'github.com', accentColor: '#123abc' });
@@ -194,6 +219,12 @@
     assert('favorites render link', Boolean(favoriteGrid.querySelector('a[href="https://docs.github.com/"]')));
     assert('favorites render edit action', Boolean(favoriteGrid.querySelector('[data-action="edit-favorite"]')));
     assert('favorites render avoids inline error handlers', !favoriteGrid.innerHTML.includes('onerror='));
+    const renderedCard = favoriteGrid.querySelector('.favorite-card');
+    const renderedLogo = renderedCard.querySelector('.favorite-icon img');
+    TabOutFavorites.handleFavoriteLogoLoad(renderedLogo);
+    assert('favorite logo load hides initials', renderedCard.classList.contains('has-logo') && getComputedStyle(renderedCard.querySelector('.favorite-initials')).display === 'none');
+    TabOutFavorites.handleFavoriteLogoError(renderedLogo);
+    assert('favorite logo error shows initials', !renderedCard.classList.contains('has-logo') && renderedLogo.hidden === true);
     const favoriteTextBox = favoriteGrid.querySelector('.favorite-text').getBoundingClientRect();
     const favoriteLinkBox = favoriteGrid.querySelector('.favorite-link').getBoundingClientRect();
     assert('favorite text stretches for ellipsis', Math.abs(favoriteTextBox.width - favoriteLinkBox.width) < 1);

@@ -3,6 +3,7 @@
 window.TabOutFavorites = (() => {
   const STORAGE_KEY = 'favorites';
   const COLOR_RE = /^#[0-9a-f]{6}$/i;
+  const ACCENT_SOURCES = new Set(['manual', 'favicon', 'host', 'fallback']);
   const FOCUSABLE_SELECTOR = [
     'a[href]',
     'button:not([disabled]):not([hidden])',
@@ -17,6 +18,117 @@ window.TabOutFavorites = (() => {
   let editorEventsBound = false;
   let favoriteImageFallbackBound = false;
 
+  function hexFromRgb(r, g, b) {
+    return `#${[r, g, b].map(value => (
+      Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0')
+    )).join('')}`;
+  }
+
+  function rgbToHsl(r, g, b) {
+    const red = r / 255;
+    const green = g / 255;
+    const blue = b / 255;
+    const max = Math.max(red, green, blue);
+    const min = Math.min(red, green, blue);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case red:
+          h = (green - blue) / d + (green < blue ? 6 : 0);
+          break;
+        case green:
+          h = (blue - red) / d + 2;
+          break;
+        default:
+          h = (red - green) / d + 4;
+      }
+      h /= 6;
+    }
+
+    return { h, s, l };
+  }
+
+  function extractAccentFromPixels(pixelArray = []) {
+    const buckets = new Map();
+    for (let index = 0; index < pixelArray.length; index += 4) {
+      const r = pixelArray[index];
+      const g = pixelArray[index + 1];
+      const b = pixelArray[index + 2];
+      const a = pixelArray[index + 3];
+      if (a < 80) continue;
+
+      const { s, l } = rgbToHsl(r, g, b);
+      if (l > 0.92 || l < 0.08 || s < 0.28) continue;
+
+      const key = hexFromRgb(Math.round(r / 8) * 8, Math.round(g / 8) * 8, Math.round(b / 8) * 8);
+      const current = buckets.get(key) || { score: 0, r: 0, g: 0, b: 0, weight: 0 };
+      const weight = (s * 2) + (1 - Math.abs(l - 0.48));
+      current.score += weight;
+      current.r += r * weight;
+      current.g += g * weight;
+      current.b += b * weight;
+      current.weight += weight;
+      buckets.set(key, current);
+    }
+
+    let best = '';
+    let bestScore = 0;
+    buckets.forEach(bucket => {
+      if (bucket.score > bestScore && bucket.weight > 0) {
+        best = hexFromRgb(bucket.r / bucket.weight, bucket.g / bucket.weight, bucket.b / bucket.weight);
+        bestScore = bucket.score;
+      }
+    });
+    return best;
+  }
+
+  async function extractAccentFromFavicon(pageUrl) {
+    if (typeof Image === 'undefined' || typeof document === 'undefined') return '';
+
+    const src = TabOutShared.faviconUrl(pageUrl, 64);
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    const loaded = await new Promise(resolve => {
+      image.onload = () => resolve(true);
+      image.onerror = () => resolve(false);
+      image.src = src;
+    });
+    if (!loaded || !image.naturalWidth || !image.naturalHeight) return '';
+
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return '';
+
+    try {
+      ctx.drawImage(image, 0, 0);
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      return extractAccentFromPixels(Array.from(data));
+    } catch {
+      return '';
+    }
+  }
+
+  async function resolveFavoriteAccent({ url, hostname, requestedColor }) {
+    const trimmed = String(requestedColor || '').trim();
+    if (COLOR_RE.test(trimmed)) return { accentColor: trimmed.toLowerCase(), accentSource: 'manual' };
+
+    const extracted = await extractAccentFromFavicon(url);
+    if (COLOR_RE.test(extracted)) return { accentColor: extracted.toLowerCase(), accentSource: 'favicon' };
+
+    const hostColor = TabOutShared.inferAccentColor(hostname);
+    return {
+      accentColor: hostColor,
+      accentSource: hostColor === '#5a7a62' ? 'fallback' : 'host',
+    };
+  }
+
   function normalizeFavoriteInput(input = {}, existing = null) {
     const url = TabOutShared.normalizeUrl(input.url);
     const hostname = TabOutShared.hostnameFromUrl(url);
@@ -24,9 +136,23 @@ window.TabOutFavorites = (() => {
 
     const title = String(input.title || '').trim() || hostname;
     const requestedColor = String(input.accentColor || input.color || '').trim();
+    const requestedSource = ACCENT_SOURCES.has(input.accentSource) ? input.accentSource : '';
+    const manualColor = COLOR_RE.test(requestedColor) && !requestedSource;
+    const fallbackColor = TabOutShared.inferAccentColor(hostname);
+    const existingColor = COLOR_RE.test(existing?.accentColor || '') ? existing.accentColor.toLowerCase() : '';
     const accentColor = COLOR_RE.test(requestedColor)
       ? requestedColor.toLowerCase()
-      : TabOutShared.inferAccentColor(hostname);
+      : existingColor || fallbackColor;
+    const existingSource = ACCENT_SOURCES.has(existing?.accentSource) ? existing.accentSource : '';
+    const accentSource = requestedSource
+      ? requestedSource
+      : manualColor
+      ? 'manual'
+      : existingSource
+      ? existingSource
+      : accentColor === fallbackColor
+      ? (fallbackColor === '#5a7a62' ? 'fallback' : 'host')
+      : 'favicon';
     const now = new Date().toISOString();
 
     return {
@@ -35,6 +161,7 @@ window.TabOutFavorites = (() => {
       url,
       hostname,
       accentColor,
+      accentSource,
       createdAt: existing?.createdAt || input.createdAt || now,
       updatedAt: now,
     };
@@ -66,7 +193,20 @@ window.TabOutFavorites = (() => {
     if (id && index === -1) throw new Error('Favorite no longer exists.');
 
     const existing = index === -1 ? null : favorites[index];
-    const favorite = normalizeFavoriteInput({ ...input, id: id || undefined }, existing);
+    const rawUrl = TabOutShared.normalizeUrl(input.url);
+    const hostname = TabOutShared.hostnameFromUrl(rawUrl);
+    const resolvedAccent = await resolveFavoriteAccent({
+      url: rawUrl,
+      hostname,
+      requestedColor: input.accentColor || input.color || '',
+    });
+    const favorite = normalizeFavoriteInput({
+      ...input,
+      id: id || undefined,
+      url: rawUrl,
+      accentColor: resolvedAccent.accentColor,
+      accentSource: resolvedAccent.accentSource,
+    }, existing);
 
     if (index === -1) {
       favorites.push(favorite);
@@ -86,6 +226,24 @@ window.TabOutFavorites = (() => {
     const nextFavorites = favorites.filter(favorite => favorite.id !== targetId);
     await chrome.storage.local.set({ [STORAGE_KEY]: nextFavorites });
     return nextFavorites.length !== favorites.length;
+  }
+
+  function handleFavoriteLogoLoad(image) {
+    if (!(image instanceof HTMLImageElement)) return;
+    const card = image.closest('.favorite-card');
+    if (!card) return;
+    image.hidden = false;
+    image.style.display = '';
+    card.classList.add('has-logo');
+  }
+
+  function handleFavoriteLogoError(image) {
+    if (!(image instanceof HTMLImageElement)) return;
+    const card = image.closest('.favorite-card');
+    if (!card) return;
+    image.hidden = true;
+    image.style.display = 'none';
+    card.classList.remove('has-logo');
   }
 
   function renderFavoriteCard(favorite) {
@@ -303,12 +461,17 @@ window.TabOutFavorites = (() => {
 
     if (!favoriteImageFallbackBound) {
       favoriteImageFallbackBound = true;
+      document.addEventListener('load', event => {
+        const target = event.target;
+        if (!(target instanceof HTMLImageElement)) return;
+        if (!target.matches('.favorite-icon img, .favorite-logo img')) return;
+        handleFavoriteLogoLoad(target);
+      }, true);
       document.addEventListener('error', event => {
         const target = event.target;
         if (!(target instanceof HTMLImageElement)) return;
         if (!target.matches('.favorite-icon img, .favorite-logo img')) return;
-        target.hidden = true;
-        target.style.display = 'none';
+        handleFavoriteLogoError(target);
       }, true);
     }
 
@@ -322,9 +485,13 @@ window.TabOutFavorites = (() => {
 
   return {
     normalizeFavoriteInput,
+    extractAccentFromPixels,
+    extractAccentFromFavicon,
     getFavorites,
     saveFavorite,
     removeFavorite,
+    handleFavoriteLogoLoad,
+    handleFavoriteLogoError,
     renderFavorites,
     handleFavoriteAction,
     initFavorites,

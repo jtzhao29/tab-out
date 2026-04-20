@@ -3,6 +3,10 @@
 window.TabOutShared = (() => {
   const HOST_COLORS = {
     'github.com': '#24292f',
+    'baidu.com': '#1c6fc8',
+    'www.baidu.com': '#1c6fc8',
+    'bilibili.com': '#00a1d6',
+    'www.bilibili.com': '#00a1d6',
     'mail.google.com': '#d14836',
     'calendar.google.com': '#1a73e8',
     'notion.so': '#111111',
