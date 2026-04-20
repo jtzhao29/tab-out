@@ -48,8 +48,8 @@ This is a pure Chrome extension. There is no Node.js setup and no server to star
 1. Clone the repository:
 
    ```bash
-   git clone <your-repo-url>
-   cd tab-out
+   git clone https://github.com/FDULeolu/tab-out-dashboard.git
+   cd tab-out-dashboard
    ```
 
 2. Open Chrome and go to `chrome://extensions`.
