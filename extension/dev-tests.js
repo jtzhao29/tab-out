@@ -46,6 +46,56 @@
     assert('buildMonthDays contains month start', days.some(day => day.dateString === '2026-04-01' && day.inMonth));
     assert('buildMonthDays contains month end', days.some(day => day.dateString === '2026-04-30' && day.inMonth));
 
+    delete window.__tabOutDevStorage.dashboardSettings;
+
+    const defaultSettings = TabOutSettings.defaultSettings();
+    assert('settings defaults use auto-plus-custom greeting mode', defaultSettings.greetingMode === 'auto-plus-custom');
+    assert('settings defaults show favorites', defaultSettings.sections.favorites === true);
+    assert('settings defaults show open tabs', defaultSettings.sections.openTabs === true);
+    assert('settings defaults show tasks', defaultSettings.sections.tasks === true);
+    assert('settings defaults show calendar', defaultSettings.sections.calendar === true);
+    assert('settings defaults show saved for later', defaultSettings.sections.savedForLater === true);
+
+    const normalizedSettings = TabOutSettings.normalizeSettings({
+      greetingMode: 'custom',
+      customGreeting: '  Focus window  ',
+      sections: {
+        favorites: false,
+        openTabs: true,
+        tasks: false,
+        calendar: true,
+        savedForLater: false,
+      },
+    });
+    assert('settings normalize trims custom greeting', normalizedSettings.customGreeting === 'Focus window');
+    assert('settings normalize preserves valid mode', normalizedSettings.greetingMode === 'custom');
+    assert('settings normalize preserves section flags', normalizedSettings.sections.favorites === false && normalizedSettings.sections.calendar === true);
+
+    const invalidSettings = TabOutSettings.normalizeSettings({
+      greetingMode: 'bad-mode',
+      customGreeting: 123,
+      sections: { favorites: false },
+    });
+    assert('settings normalize falls back invalid mode', invalidSettings.greetingMode === 'auto-plus-custom');
+    assert('settings normalize coerces custom greeting', invalidSettings.customGreeting === '123');
+    assert('settings normalize fills missing section flags', invalidSettings.sections.openTabs === true && invalidSettings.sections.favorites === false);
+
+    const savedSettings = await TabOutSettings.saveSettings({
+      greetingMode: 'custom',
+      customGreeting: 'Deep work',
+      sections: { favorites: false, openTabs: false, tasks: true, calendar: false, savedForLater: true },
+    });
+    assert('settings save stores normalized settings', window.__tabOutDevStorage.dashboardSettings.customGreeting === 'Deep work');
+    assert('settings save returns normalized settings', savedSettings.sections.openTabs === false);
+    const loadedSettings = await TabOutSettings.getSettings();
+    assert('settings get reads stored settings', loadedSettings.customGreeting === 'Deep work' && loadedSettings.sections.savedForLater === true);
+
+    assert('settings auto greeting renders default greeting', TabOutSettings.resolveGreetingText({ greetingMode: 'auto', customGreeting: '' }, 'Good morning').heading === 'Good morning');
+    assert('settings custom greeting renders custom primary', TabOutSettings.resolveGreetingText({ greetingMode: 'custom', customGreeting: 'Build calmly' }, 'Good morning').heading === 'Build calmly');
+    const combinedGreeting = TabOutSettings.resolveGreetingText({ greetingMode: 'auto-plus-custom', customGreeting: 'Build calmly' }, 'Good morning');
+    assert('settings combined greeting keeps time heading', combinedGreeting.heading === 'Good morning');
+    assert('settings combined greeting exposes custom subheading', combinedGreeting.subheading === 'Build calmly');
+
     const favorite = TabOutFavorites.normalizeFavoriteInput({ title: '', url: 'github.com', accentColor: '' });
     assert('favorite title defaults to hostname', favorite.title === 'github.com');
     assert('favorite hostname set', favorite.hostname === 'github.com');
