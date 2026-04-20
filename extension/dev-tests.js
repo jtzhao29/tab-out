@@ -129,6 +129,7 @@
     const deferredLink = deferredHost.querySelector('.deferred-title');
     assert('deferred render keeps malicious title as text', deferredLink.textContent.includes('<img src=x onerror=alert(1)>'));
     assert('deferred render avoids injected title image', deferredLink.querySelectorAll('img').length === 1);
+    assert('deferred render uses extension favicon endpoint', deferredLink.querySelector('.deferred-favicon').getAttribute('src').includes('/_favicon/'));
     assert('deferred render avoids inline handlers', !deferredHost.querySelector('[onerror],[onclick]'));
 
     const archiveHost = document.createElement('div');
@@ -227,6 +228,9 @@
 
     const personalRail = document.createElement('aside');
     personalRail.className = 'personal-rail';
+    const statTasks = document.createElement('span');
+    statTasks.id = 'statTasks';
+    personalRail.appendChild(statTasks);
     const tasksPanel = document.createElement('section');
     tasksPanel.innerHTML = '<span id="tasksCount"></span><div id="tasksRoot"></div><span id="calendarMonthLabel"></span><div id="calendarRoot"></div>';
     personalRail.appendChild(tasksPanel);
@@ -263,6 +267,7 @@
     assert('tasks dashboard renders active tasks', tasksPanel.querySelector('#tasksRoot').textContent.includes('<Ship UI>'));
     assert('tasks dashboard excludes completed tasks', !tasksPanel.querySelector('#tasksRoot').textContent.includes('Done task'));
     assert('tasks dashboard updates open count', tasksPanel.querySelector('#tasksCount').textContent === '1 open');
+    assert('tasks dashboard updates footer task stat', statTasks.textContent === '1');
     const renderedTaskTag = tasksPanel.querySelector('.task-tag-pill');
     assert('task tag color render is whitelisted', renderedTaskTag.getAttribute('style').includes(TabOutTasks.TAG_COLORS[0]) && !renderedTaskTag.getAttribute('style').includes('background'));
 

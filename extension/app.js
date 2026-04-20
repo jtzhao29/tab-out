@@ -26,6 +26,10 @@
 // All open tabs — populated by fetchOpenTabs()
 let openTabs = [];
 
+function realOpenTabCount() {
+  return openTabs.filter(tab => tab && !tab.isTabOut).length;
+}
+
 /**
  * fetchOpenTabs()
  *
@@ -1177,7 +1181,7 @@ async function renderStaticDashboard() {
 
   // --- Footer stats ---
   const statTabs = document.getElementById('statTabs');
-  if (statTabs) statTabs.textContent = openTabs.length;
+  if (statTabs) statTabs.textContent = realTabs.length;
 
   // --- Check for duplicate Tab Out tabs ---
   checkTabOutDupes();
@@ -1292,7 +1296,7 @@ document.addEventListener('click', async (e) => {
 
     // Update footer
     const statTabs = document.getElementById('statTabs');
-    if (statTabs) statTabs.textContent = openTabs.length;
+    if (statTabs) statTabs.textContent = realOpenTabCount();
 
     showToast('Tab closed');
     return;
@@ -1406,7 +1410,7 @@ document.addEventListener('click', async (e) => {
     showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${groupLabel}`);
 
     const statTabs = document.getElementById('statTabs');
-    if (statTabs) statTabs.textContent = openTabs.length;
+    if (statTabs) statTabs.textContent = realOpenTabCount();
     return;
   }
 

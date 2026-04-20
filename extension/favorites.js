@@ -15,6 +15,7 @@ window.TabOutFavorites = (() => {
   let editorOpener = null;
   let storageListenerBound = false;
   let editorEventsBound = false;
+  let favoriteImageFallbackBound = false;
 
   function normalizeFavoriteInput(input = {}, existing = null) {
     const url = TabOutShared.normalizeUrl(input.url);
@@ -299,6 +300,17 @@ window.TabOutFavorites = (() => {
     }
 
     bindEditorEvents();
+
+    if (!favoriteImageFallbackBound) {
+      favoriteImageFallbackBound = true;
+      document.addEventListener('error', event => {
+        const target = event.target;
+        if (!(target instanceof HTMLImageElement)) return;
+        if (!target.matches('.favorite-icon img, .favorite-logo img')) return;
+        target.hidden = true;
+        target.style.display = 'none';
+      }, true);
+    }
 
     if (!storageListenerBound && chrome.storage?.onChanged?.addListener) {
       storageListenerBound = true;

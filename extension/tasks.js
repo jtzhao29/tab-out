@@ -389,6 +389,8 @@ window.TabOutTasks = (() => {
     const tasksHtml = openTasks.map(task => renderTaskRow(task, tagsById)).join('');
 
     if (countEl) countEl.textContent = `${openTasks.length} open`;
+    const statTasks = document.getElementById('statTasks');
+    if (statTasks) statTasks.textContent = String(openTasks.length);
     root.innerHTML = `
       ${composerHtml}
       <div class="tasks-list">${tasksHtml || emptyHtml}</div>`;
