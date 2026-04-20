@@ -229,7 +229,8 @@ header {
   padding: 10px 0;
 }
 
-.favorite-editor-backdrop {
+.favorite-editor-backdrop,
+.completed-tasks-backdrop {
   position: fixed;
   inset: 0;
   z-index: 50;
@@ -239,11 +240,13 @@ header {
   padding: 20px;
 }
 
-.favorite-editor-backdrop[hidden] {
+.favorite-editor-backdrop[hidden],
+.completed-tasks-backdrop[hidden] {
   display: none;
 }
 
-.favorite-editor {
+.favorite-editor,
+.completed-tasks-modal {
   width: min(420px, 100%);
   background: var(--card-bg);
   border: 1px solid var(--warm-gray);
@@ -253,7 +256,8 @@ header {
 }
 
 .favorite-editor-head,
-.favorite-editor-actions {
+.favorite-editor-actions,
+.completed-tasks-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -264,6 +268,111 @@ header {
   font-family: 'Newsreader', serif;
   font-size: 22px;
   font-weight: 400;
+}
+
+.completed-tasks-modal {
+  width: min(560px, 100%);
+  max-height: min(680px, calc(100vh - 40px));
+  overflow: hidden;
+}
+
+.completed-tasks-head {
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(154, 145, 138, 0.17);
+  padding-bottom: 14px;
+}
+
+.completed-tasks-head h2 {
+  font-family: 'Newsreader', serif;
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.completed-tasks-head p {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 7px;
+}
+
+.completed-tasks-list {
+  display: grid;
+  gap: 10px;
+  max-height: calc(100vh - 180px);
+  overflow: auto;
+  padding-top: 14px;
+}
+
+.completed-task-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  border: 1px solid rgba(154, 145, 138, 0.17);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.54);
+  padding: 13px;
+}
+
+.completed-task-main {
+  min-width: 0;
+}
+
+.completed-task-kicker {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.completed-task-item h3 {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.completed-task-notes {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 8px;
+}
+
+.completed-task-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.completed-task-actions button {
+  border: 1px solid rgba(154, 145, 138, 0.26);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 9px;
+}
+
+.completed-task-actions button:hover,
+.completed-task-actions button:focus {
+  border-color: rgba(26, 22, 19, 0.22);
+  outline: none;
+}
+
+.completed-task-actions .completed-task-delete {
+  color: var(--accent-rose);
+}
+
+.completed-tasks-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 20px 0 4px;
+  text-align: center;
 }
 
 .favorite-icon-button {
@@ -1867,6 +1976,13 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   min-width: 0;
 }
 
+.tasks-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
 .new-task-trigger {
   width: 100%;
   border: 1px dashed rgba(154, 145, 138, 0.46);
@@ -1904,10 +2020,33 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   outline: none;
 }
 
+.completed-tasks-trigger {
+  min-width: 92px;
+  border: 1px solid rgba(154, 145, 138, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.46);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 11px;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.completed-tasks-trigger:hover,
+.completed-tasks-trigger:focus {
+  border-color: rgba(26, 22, 19, 0.18);
+  background: var(--card-bg);
+  color: var(--ink);
+  outline: none;
+}
+
 .task-composer,
 .task-property-menu,
 .calendar-popover,
-.favorite-editor {
+.favorite-editor,
+.completed-tasks-modal {
   border: 1px solid rgba(26, 22, 19, 0.10);
   border-radius: 8px;
   background:
@@ -2651,6 +2790,15 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   .task-composer-actions {
     grid-template-columns: 1fr;
     flex-direction: column;
+  }
+
+  .tasks-toolbar,
+  .completed-task-item {
+    grid-template-columns: 1fr;
+  }
+
+  .completed-task-actions {
+    justify-content: flex-start;
   }
 
   .calendar-day-trigger {

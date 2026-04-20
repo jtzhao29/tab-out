@@ -149,6 +149,50 @@ window.TabOutTasks = (() => {
     return tasks.filter(task => task && !task.completed);
   }
 
+  function completedTasks(tasks = []) {
+    return tasks
+      .filter(task => task && task.completed)
+      .slice()
+      .sort((a, b) => {
+        const bTime = Date.parse(b.completedAt || b.updatedAt || b.createdAt || '');
+        const aTime = Date.parse(a.completedAt || a.updatedAt || a.createdAt || '');
+        return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+      });
+  }
+
+  async function restoreTask(id) {
+    const targetId = String(id || '').trim();
+    if (!targetId) return null;
+
+    const tasks = await getTasks();
+    const index = tasks.findIndex(task => task && task.id === targetId);
+    if (index === -1) return null;
+
+    const updatedAt = new Date().toISOString();
+    const task = {
+      ...tasks[index],
+      completed: false,
+      completedAt: null,
+      updatedAt,
+    };
+    tasks[index] = task;
+    await setTasks(tasks);
+    return task;
+  }
+
+  async function deleteTask(id) {
+    const targetId = String(id || '').trim();
+    if (!targetId) return null;
+
+    const tasks = await getTasks();
+    const index = tasks.findIndex(task => task && task.id === targetId);
+    if (index === -1) return null;
+
+    const [removed] = tasks.splice(index, 1);
+    await setTasks(tasks);
+    return removed || null;
+  }
+
   function groupTasksByDate(tasks = []) {
     return activeTasks(tasks).reduce((out, task) => {
       if (!TabOutShared.isValidDateString(task.dueDate)) return out;
@@ -306,8 +350,86 @@ window.TabOutTasks = (() => {
       </div>`;
   }
 
+  function completedAtLabel(task) {
+    const date = String(task.completedAt || task.updatedAt || '').slice(0, 10);
+    return TabOutShared.formatDateLabel(date) || 'Completed';
+  }
+
+  function renderCompletedTaskRow(task, tagsById) {
+    const safeId = TabOutShared.escapeHtml(task.id);
+    const safeTitle = TabOutShared.escapeHtml(task.title);
+    const safeNotes = TabOutShared.escapeHtml(task.notes || '');
+    const tagPill = task.tagId ? renderTagPill(tagsById[task.tagId]) : '';
+    const dueLabel = TabOutShared.formatDateLabel(task.dueDate);
+    const dueHtml = dueLabel
+      ? `<span class="task-due-label">${TabOutShared.escapeHtml(dueLabel)}</span>`
+      : '';
+    const notesHtml = safeNotes
+      ? `<p class="completed-task-notes">${safeNotes}</p>`
+      : '';
+
+    return `
+      <article class="completed-task-item" data-task-id="${safeId}">
+        <div class="completed-task-main">
+          <div class="completed-task-kicker">${TabOutShared.escapeHtml(completedAtLabel(task))}</div>
+          <h3>${safeTitle}</h3>
+          ${tagPill || dueHtml ? `<div class="task-row-meta">${tagPill}${dueHtml}</div>` : ''}
+          ${notesHtml}
+        </div>
+        <div class="completed-task-actions">
+          <button type="button" data-action="restore-task" data-task-id="${safeId}">Restore</button>
+          <button class="completed-task-delete" type="button" data-action="delete-task" data-task-id="${safeId}">Delete</button>
+        </div>
+      </article>`;
+  }
+
+  async function renderCompletedTasksModal() {
+    const list = document.getElementById('completedTasksList');
+    if (!list) return;
+
+    const [tasks, tags] = await Promise.all([getTasks(), getTaskTags()]);
+    const doneTasks = completedTasks(tasks);
+    const tagsById = tagById(tags);
+    list.innerHTML = doneTasks.length
+      ? doneTasks.map(task => renderCompletedTaskRow(task, tagsById)).join('')
+      : '<div class="completed-tasks-empty">No completed tasks yet.</div>';
+  }
+
+  async function openCompletedTasksModal() {
+    const backdrop = document.getElementById('completedTasksBackdrop');
+    if (!backdrop) return false;
+
+    await renderCompletedTasksModal();
+    backdrop.hidden = false;
+    backdrop.setAttribute('aria-hidden', 'false');
+
+    const firstAction = backdrop.querySelector('[data-action="close-completed-tasks"], [data-action="restore-task"], [data-action="delete-task"]');
+    if (firstAction) firstAction.focus({ preventScroll: true });
+    return true;
+  }
+
+  function closeCompletedTasksModal() {
+    const backdrop = document.getElementById('completedTasksBackdrop');
+    if (!backdrop) return false;
+
+    backdrop.hidden = true;
+    backdrop.setAttribute('aria-hidden', 'true');
+    return true;
+  }
+
   function renderNewTaskTrigger() {
     return '<button class="new-task-trigger" type="button" data-action="open-task-composer">New task</button>';
+  }
+
+  function renderTasksToolbar(completedCount = 0) {
+    const historyLabel = completedCount
+      ? `Completed ${completedCount}`
+      : 'Completed';
+    return `
+      <div class="tasks-toolbar">
+        ${renderNewTaskTrigger()}
+        <button class="completed-tasks-trigger" type="button" data-action="open-completed-tasks">${TabOutShared.escapeHtml(historyLabel)}</button>
+      </div>`;
   }
 
   function renderTaskComposer(tags = []) {
@@ -386,9 +508,10 @@ window.TabOutTasks = (() => {
     const countEl = document.getElementById('tasksCount');
     const [tasks, tags] = await Promise.all([getTasks(), getTaskTags()]);
     const openTasks = activeTasks(tasks);
+    const doneTasks = completedTasks(tasks);
     const tagsById = tagById(tags);
     const composerHtml = composerState.mode === 'closed'
-      ? renderNewTaskTrigger()
+      ? renderTasksToolbar(doneTasks.length)
       : renderTaskComposer(tags);
     const emptyHtml = openTasks.length === 0
       ? '<div class="tasks-empty">No open tasks.</div>'
@@ -494,6 +617,34 @@ window.TabOutTasks = (() => {
   async function handleTaskAction(actionEl) {
     if (!actionEl) return false;
     const action = actionEl.dataset.action;
+
+    if (action === 'open-completed-tasks') {
+      return openCompletedTasksModal();
+    }
+
+    if (action === 'close-completed-tasks') {
+      return closeCompletedTasksModal();
+    }
+
+    if (action === 'restore-task') {
+      const taskId = actionEl.dataset.taskId;
+      if (!taskId) return false;
+      await restoreTask(taskId);
+      await renderTasksDashboard();
+      await renderCalendar();
+      await renderCompletedTasksModal();
+      return true;
+    }
+
+    if (action === 'delete-task') {
+      const taskId = actionEl.dataset.taskId;
+      if (!taskId) return false;
+      await deleteTask(taskId);
+      await renderTasksDashboard();
+      await renderCalendar();
+      await renderCompletedTasksModal();
+      return true;
+    }
 
     if (action === 'open-task-composer') {
       resetComposer('create');
@@ -717,9 +868,15 @@ window.TabOutTasks = (() => {
     ensureStarterTags,
     saveTask,
     completeTask,
+    restoreTask,
+    deleteTask,
     createTag,
     activeTasks,
+    completedTasks,
     groupTasksByDate,
+    renderCompletedTasksModal,
+    openCompletedTasksModal,
+    closeCompletedTasksModal,
     renderCalendarTaskPopover,
     renderTasksDashboard,
     renderCalendar,

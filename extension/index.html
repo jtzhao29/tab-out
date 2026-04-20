@@ -198,6 +198,22 @@
 </div>
 
 <!-- ================================================================
+     COMPLETED TASKS — recover or permanently delete finished tasks
+     ================================================================ -->
+<div class="completed-tasks-backdrop" id="completedTasksBackdrop" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="completedTasksTitle">
+  <section class="completed-tasks-modal">
+    <div class="completed-tasks-head">
+      <div>
+        <h2 id="completedTasksTitle">Completed tasks</h2>
+        <p>Restore something useful, or clear it for good.</p>
+      </div>
+      <button class="favorite-icon-button" type="button" data-action="close-completed-tasks" aria-label="Close completed tasks">&times;</button>
+    </div>
+    <div class="completed-tasks-list" id="completedTasksList"></div>
+  </section>
+</div>
+
+<!-- ================================================================
      TOAST — floats above everything, used for action confirmations
      Hidden by default via CSS (opacity:0, translateY)
      ================================================================ -->

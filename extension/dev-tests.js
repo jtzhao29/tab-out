@@ -472,6 +472,56 @@
     assert('task notes popover renders note text', taskWithNotesRow.querySelector('.task-notes-popover').textContent.includes('Private details for hover preview'));
     assert('task notes popover is hidden by default', getComputedStyle(taskWithNotesRow.querySelector('.task-notes-popover')).visibility === 'hidden');
 
+    const completedBackdrop = document.createElement('div');
+    completedBackdrop.id = 'completedTasksBackdrop';
+    completedBackdrop.hidden = true;
+    completedBackdrop.innerHTML = '<section role="dialog" aria-modal="true"><div id="completedTasksList"></div></section>';
+    document.body.appendChild(completedBackdrop);
+    await TabOutTasks.setTasks([
+      {
+        id: 'open_for_completed_view',
+        title: 'Open task',
+        notes: '',
+        tagId: '',
+        dueDate: '',
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+      {
+        id: 'completed_for_view',
+        title: 'Completed task',
+        notes: 'Completed task notes',
+        tagId: 'tag_work_clean',
+        dueDate: '2026-04-18',
+        completed: true,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T09:00:00.000Z',
+        completedAt: '2026-04-18T09:00:00.000Z',
+      },
+    ]);
+    await TabOutTasks.renderTasksDashboard();
+    assert('tasks dashboard renders completed history trigger', Boolean(tasksPanel.querySelector('[data-action="open-completed-tasks"]')));
+    assert('completedTasks filters completed only', TabOutTasks.completedTasks(await TabOutTasks.getTasks()).length === 1);
+    const openedCompleted = await TabOutTasks.handleTaskAction({ dataset: { action: 'open-completed-tasks' } });
+    assert('completed tasks open action handled', openedCompleted);
+    assert('completed tasks modal opens', completedBackdrop.hidden === false);
+    assert('completed tasks modal lists completed task', completedBackdrop.textContent.includes('Completed task'));
+    assert('completed tasks modal excludes active task', !completedBackdrop.textContent.includes('Open task'));
+    assert('completed tasks modal shows notes', completedBackdrop.textContent.includes('Completed task notes'));
+    assert('completed tasks modal renders undo action', Boolean(completedBackdrop.querySelector('[data-action="restore-task"][data-task-id="completed_for_view"]')));
+    assert('completed tasks modal renders delete action', Boolean(completedBackdrop.querySelector('[data-action="delete-task"][data-task-id="completed_for_view"]')));
+    const closedCompleted = await TabOutTasks.handleTaskAction({ dataset: { action: 'close-completed-tasks' } });
+    assert('completed tasks close action handled', closedCompleted);
+    assert('completed tasks modal closes', completedBackdrop.hidden === true);
+    const restored = await TabOutTasks.restoreTask('completed_for_view');
+    assert('restoreTask marks task active', restored && restored.completed === false && restored.completedAt === null);
+    await TabOutTasks.completeTask('completed_for_view');
+    const deleted = await TabOutTasks.deleteTask('completed_for_view');
+    assert('deleteTask removes completed task', deleted && !(await TabOutTasks.getTasks()).some(item => item.id === 'completed_for_view'));
+    completedBackdrop.remove();
+
     const calendarToday = TabOutShared.todayString();
     await TabOutTasks.setTaskTags([
       { id: 'tag_work', name: '<Work>', color: 'red;background:url(javascript:bad)', createdAt: '2026-04-18T08:00:00.000Z' },
