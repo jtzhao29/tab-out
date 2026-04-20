@@ -282,10 +282,16 @@ window.TabOutTasks = (() => {
   function renderTaskRow(task, tagsById) {
     const safeId = TabOutShared.escapeHtml(task.id);
     const safeTitle = TabOutShared.escapeHtml(task.title);
+    const safeNotes = TabOutShared.escapeHtml(task.notes || '');
     const tagPill = task.tagId ? renderTagPill(tagsById[task.tagId]) : '';
     const dueLabel = TabOutShared.formatDateLabel(task.dueDate);
     const dueHtml = dueLabel
       ? `<span class="task-due-label">${TabOutShared.escapeHtml(dueLabel)}</span>`
+      : '';
+    const notesHtml = safeNotes
+      ? `
+          <span class="task-note-mark">notes</span>
+          <div class="task-notes-popover" role="tooltip">${safeNotes}</div>`
       : '';
 
     return `
@@ -293,6 +299,7 @@ window.TabOutTasks = (() => {
         <button class="task-complete-button" type="button" data-action="complete-task" data-task-id="${safeId}" aria-label="Complete ${safeTitle}"></button>
         <div class="task-row-main">
           <button class="task-title-button" type="button" data-action="edit-task" data-task-id="${safeId}">${safeTitle}</button>
+          ${notesHtml}
           ${tagPill || dueHtml ? `<div class="task-row-meta">${tagPill}${dueHtml}</div>` : ''}
         </div>
         <button class="task-edit-button" type="button" data-action="edit-task" data-task-id="${safeId}">Edit</button>

@@ -441,6 +441,37 @@
     const renderedTaskTag = tasksPanel.querySelector('.task-tag-pill');
     assert('task tag color render is whitelisted', renderedTaskTag.getAttribute('style').includes(TabOutTasks.TAG_COLORS[0]) && !renderedTaskTag.getAttribute('style').includes('background'));
 
+    await TabOutTasks.setTasks([
+      {
+        id: 'task_with_notes',
+        title: 'Task with notes',
+        notes: 'Private details for hover preview',
+        tagId: 'tag_work',
+        dueDate: '2026-04-18',
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+      {
+        id: 'task_without_notes',
+        title: 'Task without notes',
+        notes: '',
+        tagId: '',
+        dueDate: '',
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+    ]);
+    await TabOutTasks.renderTasksDashboard();
+    const taskWithNotesRow = tasksPanel.querySelector('[data-task-id="task_with_notes"]');
+    const taskWithoutNotesRow = tasksPanel.querySelector('[data-task-id="task_without_notes"]');
+    assert('task notes indicator renders only with notes', Boolean(taskWithNotesRow.querySelector('.task-note-mark')) && !taskWithoutNotesRow.querySelector('.task-note-mark'));
+    assert('task notes popover renders note text', taskWithNotesRow.querySelector('.task-notes-popover').textContent.includes('Private details for hover preview'));
+    assert('task notes popover is hidden by default', getComputedStyle(taskWithNotesRow.querySelector('.task-notes-popover')).visibility === 'hidden');
+
     const calendarToday = TabOutShared.todayString();
     await TabOutTasks.setTaskTags([
       { id: 'tag_work', name: '<Work>', color: 'red;background:url(javascript:bad)', createdAt: '2026-04-18T08:00:00.000Z' },
