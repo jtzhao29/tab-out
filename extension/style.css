@@ -2349,3 +2349,65 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
     padding-left: 0;
   }
 }
+
+/* Review hardening: text truncation, dense marks, and rail-safe popovers. */
+.favorite-text {
+  width: 100%;
+}
+
+.calendar-marks {
+  gap: 2px;
+}
+
+.calendar-marks i {
+  width: 6px;
+  height: 6px;
+}
+
+.calendar-day:nth-child(7n+1) .calendar-popover,
+.calendar-day:nth-child(7n+2) .calendar-popover,
+.calendar-day:nth-child(7n+3) .calendar-popover {
+  left: 0;
+  right: auto;
+  transform: translateY(4px);
+}
+
+.calendar-day:nth-child(7n+5) .calendar-popover,
+.calendar-day:nth-child(7n+6) .calendar-popover,
+.calendar-day:nth-child(7n) .calendar-popover {
+  left: auto;
+  right: 0;
+  transform: translateY(4px);
+}
+
+.calendar-day:nth-child(7n+1):hover .calendar-popover,
+.calendar-day:nth-child(7n+1):focus-within .calendar-popover,
+.calendar-day:nth-child(7n+1).popover-open .calendar-popover,
+.calendar-day:nth-child(7n+2):hover .calendar-popover,
+.calendar-day:nth-child(7n+2):focus-within .calendar-popover,
+.calendar-day:nth-child(7n+2).popover-open .calendar-popover,
+.calendar-day:nth-child(7n+3):hover .calendar-popover,
+.calendar-day:nth-child(7n+3):focus-within .calendar-popover,
+.calendar-day:nth-child(7n+3).popover-open .calendar-popover,
+.calendar-day:nth-child(7n+5):hover .calendar-popover,
+.calendar-day:nth-child(7n+5):focus-within .calendar-popover,
+.calendar-day:nth-child(7n+5).popover-open .calendar-popover,
+.calendar-day:nth-child(7n+6):hover .calendar-popover,
+.calendar-day:nth-child(7n+6):focus-within .calendar-popover,
+.calendar-day:nth-child(7n+6).popover-open .calendar-popover,
+.calendar-day:nth-child(7n):hover .calendar-popover,
+.calendar-day:nth-child(7n):focus-within .calendar-popover,
+.calendar-day:nth-child(7n).popover-open .calendar-popover {
+  transform: translateY(0);
+}
+
+@media (max-width: 640px) {
+  .calendar-popover {
+    width: min(240px, calc(100vw - 72px));
+  }
+
+  .calendar-marks i {
+    width: 4px;
+    height: 4px;
+  }
+}

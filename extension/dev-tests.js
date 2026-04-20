@@ -72,6 +72,9 @@
     assert('favorites render link', Boolean(favoriteGrid.querySelector('a[href="https://docs.github.com/"]')));
     assert('favorites render edit action', Boolean(favoriteGrid.querySelector('[data-action="edit-favorite"]')));
     assert('favorites render avoids inline error handlers', !favoriteGrid.innerHTML.includes('onerror='));
+    const favoriteTextBox = favoriteGrid.querySelector('.favorite-text').getBoundingClientRect();
+    const favoriteLinkBox = favoriteGrid.querySelector('.favorite-link').getBoundingClientRect();
+    assert('favorite text stretches for ellipsis', Math.abs(favoriteTextBox.width - favoriteLinkBox.width) < 1);
 
     await assertThrows(
       'favorite stale edit id rejected',
@@ -272,8 +275,15 @@
     await TabOutTasks.renderCalendar();
     const edgeCells = Array.from(tasksPanel.querySelectorAll('.calendar-day:nth-child(7n+1), .calendar-day:nth-child(7n)'))
       .filter(cell => cell.dataset.date !== calendarToday);
+    const nearEdgeCells = Array.from(tasksPanel.querySelectorAll('.calendar-day:nth-child(7n+2), .calendar-day:nth-child(7n+6)'))
+      .filter(cell => cell.dataset.date !== calendarToday);
+    const fourDotCellSeed = Array.from(tasksPanel.querySelectorAll('.calendar-day:nth-child(7n+4), .calendar-day:nth-child(7n+3), .calendar-day:nth-child(7n+5)'))
+      .find(cell => cell.dataset.date !== calendarToday);
     const leftEdgeDate = edgeCells[0].dataset.date;
     const rightEdgeDate = edgeCells.find(cell => cell.matches(':nth-child(7n)')).dataset.date;
+    const nearLeftDate = nearEdgeCells.find(cell => cell.matches(':nth-child(7n+2)')).dataset.date;
+    const nearRightDate = nearEdgeCells.find(cell => cell.matches(':nth-child(7n+6)')).dataset.date;
+    const fourDotDate = fourDotCellSeed.dataset.date;
     await TabOutTasks.setTasks([
       {
         id: 'calendar_one',
@@ -341,6 +351,39 @@
         updatedAt: '2026-04-18T08:00:00.000Z',
         completedAt: null,
       },
+      {
+        id: 'calendar_near_left',
+        title: 'Near left task',
+        notes: '',
+        tagId: 'tag_clean',
+        dueDate: nearLeftDate,
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+      {
+        id: 'calendar_near_right',
+        title: 'Near right task',
+        notes: '',
+        tagId: 'tag_clean',
+        dueDate: nearRightDate,
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      },
+      ...Array.from({ length: 4 }, (_, index) => ({
+        id: `calendar_four_dot_${index}`,
+        title: `Four dot ${index}`,
+        notes: '',
+        tagId: 'tag_clean',
+        dueDate: fourDotDate,
+        completed: false,
+        createdAt: '2026-04-18T08:00:00.000Z',
+        updatedAt: '2026-04-18T08:00:00.000Z',
+        completedAt: null,
+      })),
     ]);
     await TabOutTasks.renderCalendar();
     assert('personal rail allows calendar popovers to escape clipping', getComputedStyle(personalRail).overflowY === 'visible');
@@ -383,6 +426,21 @@
     await TabOutTasks.handleTaskAction(rightEdgeTrigger);
     const rightPopoverRect = rightEdgeCell.querySelector('.calendar-popover').getBoundingClientRect();
     assert('calendar right edge popover stays inside rail', rightPopoverRect.left >= railRect.left && rightPopoverRect.right <= railRect.right);
+    const nearLeftCell = tasksPanel.querySelector(`.calendar-day[data-date="${nearLeftDate}"]`);
+    const nearLeftTrigger = nearLeftCell.querySelector('[data-action="toggle-calendar-day"]');
+    await TabOutTasks.handleTaskAction(nearLeftTrigger);
+    const nearLeftPopoverRect = nearLeftCell.querySelector('.calendar-popover').getBoundingClientRect();
+    assert('calendar near-left popover stays inside rail', nearLeftPopoverRect.left >= railRect.left && nearLeftPopoverRect.right <= railRect.right);
+    const nearRightCell = tasksPanel.querySelector(`.calendar-day[data-date="${nearRightDate}"]`);
+    const nearRightTrigger = nearRightCell.querySelector('[data-action="toggle-calendar-day"]');
+    await TabOutTasks.handleTaskAction(nearRightTrigger);
+    const nearRightPopoverRect = nearRightCell.querySelector('.calendar-popover').getBoundingClientRect();
+    assert('calendar near-right popover stays inside rail', nearRightPopoverRect.left >= railRect.left && nearRightPopoverRect.right <= railRect.right);
+    const fourDotCell = tasksPanel.querySelector(`.calendar-day[data-date="${fourDotDate}"]`);
+    const fourDotTriggerRect = fourDotCell.querySelector('.calendar-day-trigger').getBoundingClientRect();
+    const fourDotRects = Array.from(fourDotCell.querySelectorAll('.calendar-marks i')).map(dot => dot.getBoundingClientRect());
+    const lastFourDotRect = fourDotRects[fourDotRects.length - 1];
+    assert('calendar four task dots stay inside day', fourDotRects.length === 4 && lastFourDotRect.right <= fourDotTriggerRect.right);
     const originalCalendarLabel = tasksPanel.querySelector('#calendarMonthLabel').textContent;
     const nextMonthHandled = await TabOutTasks.handleTaskAction(tasksPanel.querySelector('[data-action="next-calendar-month"]'));
     assert('next calendar month action handled', nextMonthHandled);
