@@ -90,8 +90,18 @@
     const loadedSettings = await TabOutSettings.getSettings();
     assert('settings get reads stored settings', loadedSettings.customGreeting === 'Deep work' && loadedSettings.sections.savedForLater === true);
 
-    assert('settings auto greeting renders default greeting', TabOutSettings.resolveGreetingText({ greetingMode: 'auto', customGreeting: '' }, 'Good morning').heading === 'Good morning');
-    assert('settings custom greeting renders custom primary', TabOutSettings.resolveGreetingText({ greetingMode: 'custom', customGreeting: 'Build calmly' }, 'Good morning').heading === 'Build calmly');
+    const autoGreeting = TabOutSettings.resolveGreetingText({ greetingMode: 'auto', customGreeting: '' }, 'Good morning');
+    assert('settings auto greeting renders default greeting', autoGreeting.heading === 'Good morning');
+    assert('settings auto greeting has empty subheading', autoGreeting.subheading === '');
+
+    const customGreeting = TabOutSettings.resolveGreetingText({ greetingMode: 'custom', customGreeting: 'Build calmly' }, 'Good morning');
+    assert('settings custom greeting renders custom primary', customGreeting.heading === 'Build calmly');
+    assert('settings custom greeting has empty subheading', customGreeting.subheading === '');
+
+    const fallbackGreeting = TabOutSettings.resolveGreetingText({ greetingMode: 'custom', customGreeting: '' }, 'Good morning');
+    assert('settings custom greeting falls back to auto heading when empty', fallbackGreeting.heading === 'Good morning');
+    assert('settings empty custom greeting has empty subheading', fallbackGreeting.subheading === '');
+
     const combinedGreeting = TabOutSettings.resolveGreetingText({ greetingMode: 'auto-plus-custom', customGreeting: 'Build calmly' }, 'Good morning');
     assert('settings combined greeting keeps time heading', combinedGreeting.heading === 'Good morning');
     assert('settings combined greeting exposes custom subheading', combinedGreeting.subheading === 'Build calmly');
