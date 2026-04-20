@@ -1,91 +1,125 @@
-# Tab Out
+# Tab Out Dashboard
 
-**Keep tabs on your tabs.**
+A local-first Chrome new tab dashboard for open tabs, favorite sites, tasks, and calendar planning.
 
-Tab Out is a Chrome extension that replaces your new tab page with a dashboard of everything you have open. Tabs are grouped by domain, with homepages (Gmail, X, LinkedIn, etc.) pulled into their own group. Close tabs with a satisfying swoosh + confetti.
+Tab Out Dashboard turns the new tab page into a focused daily workspace. It keeps the original Tab Out idea of grouping open tabs by domain, then adds a personal layer: editable favorites with favicon-aware accent colors, a tagged TODO list, calendar task previews, completed task history, and dashboard settings.
 
-No server. No account. No external API calls. Just a Chrome extension.
-
----
-
-## Install with a coding agent
-
-Send your coding agent (Claude Code, Codex, etc.) this repo and say **"install this"**:
-
-```
-https://github.com/zarazhangrui/tab-out
-```
-
-The agent will walk you through it. Takes about 1 minute.
-
----
+Everything runs inside the browser extension. There is no server, account, build step, analytics, or external data sync.
 
 ## Features
 
-- **See all your tabs at a glance** on a clean grid, grouped by domain
-- **Homepages group** pulls Gmail inbox, X home, YouTube, LinkedIn, GitHub homepages into one card
-- **Close tabs with style** with swoosh sound + confetti burst
-- **Duplicate detection** flags when you have the same page open twice, with one-click cleanup
-- **Click any tab to jump to it** across windows, no new tab opened
-- **Save for later** bookmark tabs to a checklist before closing them
-- **Localhost grouping** shows port numbers next to each tab so you can tell your vibe coding projects apart
-- **Expandable groups** show the first 8 tabs with a clickable "+N more"
-- **100% local** your data never leaves your machine
-- **Pure Chrome extension** no server, no Node.js, no npm, no setup beyond loading the extension
+- **Open tab overview**: group every open tab by domain, detect duplicates, and jump to tabs across Chrome windows.
+- **Homepage grouping**: collect daily homepages like Gmail, YouTube, GitHub, LinkedIn, and X into one cleanup-friendly card.
+- **One-click cleanup**: close individual tabs, duplicate tabs, a whole domain group, or all open tabs with lightweight local animations.
+- **Save for later**: move tabs into a local checklist before closing them.
+- **Custom favorites**: add editable favorite websites, show their favicons, infer accent colors from logos when possible, and keep cards in a centered six-column wrapping grid.
+- **Drag reorder favorites**: swap favorite card positions directly from the dashboard.
+- **TODO list**: create and edit tasks with title, optional notes, custom tags, and optional dates.
+- **Notion-style tags**: choose an existing tag or create a new one inline with a controlled color palette.
+- **Calendar planning**: dated tasks appear on a monthly calendar; hover or click a day to see all tasks for that date.
+- **Completed task history**: open completed tasks in a modal, restore them to the active list, or delete them permanently.
+- **Dashboard settings**: customize the greeting and toggle Favorites, Open tabs, Tasks, Calendar, and Saved for later.
+- **Local storage**: favorites, tasks, settings, and saved tabs live in `chrome.storage.local`.
 
----
+## Privacy
 
-## Manual Setup
+Tab Out Dashboard is designed to stay local.
 
-**1. Clone the repo**
+- No hosted backend.
+- No accounts.
+- No analytics.
+- No external API calls for app data.
+- Data is stored in Chrome via `chrome.storage.local`.
+- Favicons use Chrome extension favicon URLs exposed by the browser.
+
+Chrome permissions are limited to what the extension needs:
+
+| Permission | Why it is used |
+| --- | --- |
+| `tabs` | Read, focus, and close open tabs. |
+| `activeTab` | Work with the active browser context. |
+| `storage` | Save local favorites, tasks, settings, and deferred tabs. |
+| `favicon` | Display site favicons for favorites and tab chips. |
+
+## Installation
+
+This is a pure Chrome extension. There is no Node.js setup and no server to start.
+
+1. Clone the repository:
+
+   ```bash
+   git clone <your-repo-url>
+   cd tab-out
+   ```
+
+2. Open Chrome and go to `chrome://extensions`.
+
+3. Enable **Developer mode** in the top-right corner.
+
+4. Click **Load unpacked**.
+
+5. Select the `extension/` folder in this repository.
+
+6. Open a new tab.
+
+## Updating
+
+Pull the latest code and reload the unpacked extension:
 
 ```bash
-git clone https://github.com/zarazhangrui/tab-out.git
+git pull
 ```
 
-**2. Load the Chrome extension**
+Then open `chrome://extensions` and click **Reload** on the extension card.
 
-1. Open Chrome and go to `chrome://extensions`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked**
-4. Navigate to the `extension/` folder inside the cloned repo and select it
+## Project Structure
 
-**3. Open a new tab**
-
-You'll see Tab Out.
-
----
-
-## How it works
-
-```
-You open a new tab
-  -> Tab Out shows your open tabs grouped by domain
-  -> Homepages (Gmail, X, etc.) get their own group at the top
-  -> Click any tab title to jump to it
-  -> Close groups you're done with (swoosh + confetti)
-  -> Save tabs for later before closing them
+```text
+extension/
+  index.html              New tab dashboard shell
+  style.css               Dashboard, modal, calendar, and settings styles
+  app.js                  Open tab grouping, saved tabs, and dashboard boot
+  shared.js               Shared URL, date, favicon, and escaping helpers
+  favorites.js            Custom favorite sites and favicon accent logic
+  tasks.js                TODO, tags, calendar tasks, and completed history
+  settings.js             Greeting and section visibility settings
+  background.js           Manifest V3 service worker
+  dev-tests.html          Browser-based development test harness
+  dev-tests.js            Regression tests for extension behavior
 ```
 
-Everything runs inside the Chrome extension. No external server, no API calls, no data sent anywhere. Saved tabs are stored in `chrome.storage.local`.
+## Development
 
----
+Most changes can be made by editing files in `extension/` and reloading the unpacked extension in Chrome.
 
-## Tech stack
+Run the browser-based test harness with Chrome headless:
 
-| What | How |
-|------|-----|
-| Extension | Chrome Manifest V3 |
-| Storage | chrome.storage.local |
-| Sound | Web Audio API (synthesized, no files) |
-| Animations | CSS transitions + JS confetti particles |
+```bash
+'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+  --headless=new \
+  --disable-gpu \
+  --disable-background-networking \
+  --user-data-dir=/tmp/tab-out-dev-tests \
+  --virtual-time-budget=3000 \
+  --dump-dom \
+  "file://$PWD/extension/dev-tests.html"
+```
 
----
+The harness writes a `pass` or `fail` result into the page. It covers storage normalization, favorites, task tags, calendar rendering, settings, completed tasks, and security-sensitive escaping behavior.
+
+## Roadmap
+
+- Import/export local dashboard data.
+- Optional keyboard shortcuts for common dashboard actions.
+- More polished onboarding for first-time users.
+- Optional theme presets while preserving the current minimal visual style.
+
+## Credits
+
+This project is built on top of [Tab Out](https://github.com/zarazhangrui/tab-out) by [Zara Zhang](https://x.com/zarazhangrui). The original project introduced the local Chrome new tab workflow, open-tab grouping, duplicate cleanup, saved-for-later checklist, and the playful tab closing interactions.
+
+This repository extends that foundation into a broader personal dashboard with favorites, tasks, calendar planning, completed task history, and settings.
 
 ## License
 
-MIT
-
----
-
-Built by [Zara](https://x.com/zarazhangrui)
+MIT. See [LICENSE](LICENSE).
