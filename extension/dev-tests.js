@@ -214,6 +214,7 @@
 
     const favoriteGrid = document.createElement('div');
     favoriteGrid.id = 'favoritesGrid';
+    favoriteGrid.className = 'favorites-grid';
     document.body.appendChild(favoriteGrid);
     await TabOutFavorites.renderFavorites();
     assert('favorites render link', Boolean(favoriteGrid.querySelector('a[href="https://docs.github.com/"]')));
@@ -271,6 +272,22 @@
     });
     await new Promise(resolve => setTimeout(resolve, 0));
     assert('favorite storage listener rerenders grid', Boolean(favoriteGrid.querySelector('a[href="https://linear.app/"]')));
+
+    const favoriteA = TabOutFavorites.normalizeFavoriteInput({ id: 'favorite_a', title: 'A', url: 'https://a.example', accentColor: '#111111' });
+    const favoriteB = TabOutFavorites.normalizeFavoriteInput({ id: 'favorite_b', title: 'B', url: 'https://b.example', accentColor: '#222222' });
+    const favoriteC = TabOutFavorites.normalizeFavoriteInput({ id: 'favorite_c', title: 'C', url: 'https://c.example', accentColor: '#333333' });
+    await chrome.storage.local.set({ favorites: [favoriteA, favoriteB, favoriteC] });
+    const reordered = await TabOutFavorites.reorderFavorites('favorite_c', 'favorite_a');
+    assert('favorite reorder action reports swap', reordered === true);
+    assert('favorite reorder persists source and target swap', window.__tabOutDevStorage.favorites.map(item => item.id).join(',') === 'favorite_c,favorite_b,favorite_a');
+    const missingReorder = await TabOutFavorites.reorderFavorites('missing', 'favorite_a');
+    assert('favorite reorder ignores missing source', missingReorder === false);
+
+    await TabOutFavorites.renderFavorites();
+    assert('favorite cards are draggable', Array.from(favoriteGrid.querySelectorAll('.favorite-card')).every(card => card.draggable === true));
+    const favoriteGridStyle = getComputedStyle(favoriteGrid);
+    assert('favorite grid uses centered wrapping layout', favoriteGridStyle.display === 'flex' && favoriteGridStyle.justifyContent === 'center' && favoriteGridStyle.flexWrap === 'wrap');
+    assert('favorite grid caps six fixed cards per row', parseFloat(favoriteGridStyle.maxWidth) <= 675);
 
     const deferredHost = document.createElement('div');
     deferredHost.innerHTML = TabOutAppTest.renderDeferredItem({

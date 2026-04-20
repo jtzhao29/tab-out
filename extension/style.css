@@ -1724,15 +1724,24 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .favorites-grid {
-  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 10px;
+  max-width: 674px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .favorite-card {
+  width: 104px;
+  flex: 0 0 104px;
+  aspect-ratio: 1 / 1;
   min-height: 104px;
   align-items: stretch;
   border-color: transparent;
   background: rgba(255, 253, 249, 0.62);
+  cursor: grab;
   padding: 12px 11px 13px;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
@@ -1759,6 +1768,18 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .favorite-card:hover::before,
 .favorite-card:focus-within::before {
   transform: scaleX(1);
+}
+
+.favorite-card.dragging {
+  cursor: grabbing;
+  opacity: 0.56;
+  transform: scale(0.98);
+}
+
+.favorite-card.drag-over {
+  border-color: color-mix(in srgb, var(--favorite-color, var(--accent-sage)) 38%, rgba(26, 22, 19, 0.12));
+  background: var(--card-bg);
+  box-shadow: 0 16px 38px rgba(26, 22, 19, 0.10);
 }
 
 .favorite-link {
@@ -2539,7 +2560,6 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   }
 
   .favorites-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-top: 18px;
   }
 
@@ -2573,7 +2593,12 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   }
 
   .favorites-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .favorite-card {
+    flex-basis: min(46%, 132px);
+    width: min(46%, 132px);
   }
 
   .task-composer-properties,

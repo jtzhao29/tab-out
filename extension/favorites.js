@@ -17,6 +17,8 @@ window.TabOutFavorites = (() => {
   let storageListenerBound = false;
   let editorEventsBound = false;
   let favoriteImageFallbackBound = false;
+  let dragEventsBound = false;
+  let draggedFavoriteId = '';
 
   function hexFromRgb(r, g, b) {
     return `#${[r, g, b].map(value => (
@@ -228,6 +230,21 @@ window.TabOutFavorites = (() => {
     return nextFavorites.length !== favorites.length;
   }
 
+  async function reorderFavorites(sourceId, targetId) {
+    const source = String(sourceId || '').trim();
+    const target = String(targetId || '').trim();
+    if (!source || !target || source === target) return false;
+
+    const favorites = await getFavorites();
+    const sourceIndex = favorites.findIndex(favorite => favorite.id === source);
+    const targetIndex = favorites.findIndex(favorite => favorite.id === target);
+    if (sourceIndex === -1 || targetIndex === -1) return false;
+
+    [favorites[sourceIndex], favorites[targetIndex]] = [favorites[targetIndex], favorites[sourceIndex]];
+    await chrome.storage.local.set({ [STORAGE_KEY]: favorites });
+    return true;
+  }
+
   function handleFavoriteLogoLoad(image) {
     if (!(image instanceof HTMLImageElement)) return;
     const card = image.closest('.favorite-card');
@@ -256,7 +273,7 @@ window.TabOutFavorites = (() => {
     const favicon = TabOutShared.escapeHtml(TabOutShared.faviconUrl(favorite.url, 64));
 
     return `
-      <div class="favorite-card" style="--favorite-color:${safeColor}" data-favorite-id="${safeId}">
+      <div class="favorite-card" draggable="true" style="--favorite-color:${safeColor}" data-favorite-id="${safeId}">
         <a class="favorite-link" href="${safeUrl}" target="_top" title="${safeTitle}">
           <span class="favorite-icon" aria-hidden="true">
             <span class="favorite-initials">${initials}</span>
@@ -400,6 +417,62 @@ window.TabOutFavorites = (() => {
     }
   }
 
+  function favoriteCardFromEvent(event) {
+    if (!(event.target instanceof Element)) return null;
+    return event.target.closest('.favorite-card[data-favorite-id]');
+  }
+
+  function clearDragState() {
+    document.querySelectorAll('.favorite-card.dragging, .favorite-card.drag-over').forEach(card => {
+      card.classList.remove('dragging', 'drag-over');
+    });
+    draggedFavoriteId = '';
+  }
+
+  function bindDragEvents() {
+    if (dragEventsBound) return;
+    dragEventsBound = true;
+
+    document.addEventListener('dragstart', event => {
+      const card = favoriteCardFromEvent(event);
+      if (!card) return;
+      draggedFavoriteId = card.dataset.favoriteId || '';
+      card.classList.add('dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', draggedFavoriteId);
+      }
+    });
+
+    document.addEventListener('dragover', event => {
+      const card = favoriteCardFromEvent(event);
+      if (!card || !draggedFavoriteId || card.dataset.favoriteId === draggedFavoriteId) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      card.classList.add('drag-over');
+    });
+
+    document.addEventListener('dragleave', event => {
+      const card = favoriteCardFromEvent(event);
+      const related = event.relatedTarget;
+      if (!card || (related instanceof Node && card.contains(related))) return;
+      card.classList.remove('drag-over');
+    });
+
+    document.addEventListener('drop', async event => {
+      const card = favoriteCardFromEvent(event);
+      if (!card) return;
+      event.preventDefault();
+      const source = event.dataTransfer?.getData('text/plain') || draggedFavoriteId;
+      const target = card.dataset.favoriteId || '';
+      const moved = await reorderFavorites(source, target);
+      clearDragState();
+      if (moved) await renderFavorites();
+    });
+
+    document.addEventListener('dragend', clearDragState);
+  }
+
   async function submitEditor() {
     const titleInput = document.getElementById('favoriteTitleInput');
     const urlInput = document.getElementById('favoriteUrlInput');
@@ -458,6 +531,7 @@ window.TabOutFavorites = (() => {
     }
 
     bindEditorEvents();
+    bindDragEvents();
 
     if (!favoriteImageFallbackBound) {
       favoriteImageFallbackBound = true;
@@ -490,6 +564,7 @@ window.TabOutFavorites = (() => {
     getFavorites,
     saveFavorite,
     removeFavorite,
+    reorderFavorites,
     handleFavoriteLogoLoad,
     handleFavoriteLogoError,
     renderFavorites,
