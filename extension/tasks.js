@@ -279,6 +279,21 @@ window.TabOutTasks = (() => {
     }, {});
   }
 
+  function scheduledTasks(tasks = []) {
+    return tasks.filter(task => task && minutesFromTime(task.startTime) !== null);
+  }
+
+  function todoTasks(tasks = []) {
+    return tasks
+      .filter(task => task && !task.completed && minutesFromTime(task.startTime) === null)
+      .slice()
+      .sort((a, b) => {
+        const aTime = Date.parse(a.createdAt || '');
+        const bTime = Date.parse(b.createdAt || '');
+        return (Number.isFinite(aTime) ? aTime : 0) - (Number.isFinite(bTime) ? bTime : 0);
+      });
+  }
+
   function tagById(tags = []) {
     return tags.reduce((out, tag) => {
       if (tag && tag.id) out[tag.id] = tag;
@@ -291,13 +306,14 @@ window.TabOutTasks = (() => {
   }
 
   function resetComposer(mode = 'closed', task = {}) {
+    const hasDueDate = Object.prototype.hasOwnProperty.call(task, 'dueDate');
     composerState = {
       mode,
       taskId: mode === 'edit' ? task.id : null,
       title: task.title || '',
       notes: task.notes || '',
       tagId: task.tagId || '',
-      dueDate: task.dueDate || selectedDate || today,
+      dueDate: hasDueDate ? (task.dueDate || '') : (selectedDate || today),
       startTime: task.startTime || '',
       durationMinutes: normalizeDuration(task.durationMinutes || 60),
     };
@@ -420,30 +436,6 @@ window.TabOutTasks = (() => {
     return tasks[index];
   }
 
-  async function openTaskWorkspace(taskId) {
-    const task = (await getTasks()).find(item => item && item.id === taskId);
-    const linkedTabs = normalizeLinkedTabs(task?.linkedTabs);
-    if (!linkedTabs.length) return false;
-
-    let existingTabs = [];
-    try {
-      existingTabs = await chrome.tabs.query({});
-    } catch {
-      existingTabs = [];
-    }
-
-    for (const linked of linkedTabs) {
-      const match = existingTabs.find(tab => tab.url === linked.url);
-      if (match) {
-        await chrome.tabs.update(match.id, { active: true });
-        await chrome.windows.update(match.windowId, { focused: true });
-      } else {
-        await chrome.tabs.create({ url: linked.url, active: false });
-      }
-    }
-    return true;
-  }
-
   function renderTagMenu(tags = []) {
     if (openPropertyMenu !== 'tag') return '';
 
@@ -529,7 +521,8 @@ window.TabOutTasks = (() => {
   function renderTaskComposer(tags = []) {
     const safeTitle = TabOutShared.escapeHtml(composerState.title);
     const safeNotes = TabOutShared.escapeHtml(composerState.notes);
-    const startMinutes = minutesFromTime(composerState.startTime) ?? 540;
+    const hasScheduledTime = minutesFromTime(composerState.startTime) !== null;
+    const startMinutes = minutesFromTime(composerState.startTime) ?? currentRoundedStartMinutes();
     const durationMinutes = normalizeDuration(composerState.durationMinutes);
     const safeStart = TabOutShared.escapeHtml(startMinutes);
     const safeDuration = TabOutShared.escapeHtml(durationMinutes);
@@ -539,18 +532,14 @@ window.TabOutTasks = (() => {
     const submitLabel = composerState.mode === 'edit' ? 'Save task' : 'Add task';
     const tagExpanded = openPropertyMenu === 'tag' ? 'true' : 'false';
     const dateExpanded = openPropertyMenu === 'date' ? 'true' : 'false';
-
-    return `
-      <form class="task-composer" id="taskComposer" novalidate>
-        <label class="task-composer-field" for="taskTitleInput">
-          Title
-          <input id="taskTitleInput" type="text" autocomplete="off" value="${safeTitle}" placeholder="What are you doing next?">
-        </label>
+    const timeControls = hasScheduledTime
+      ? `
         <div class="task-time-fields">
           <label class="task-composer-field task-slider-field" for="taskStartSlider">
             <span>
               Start
               <button class="task-now-button" type="button" data-action="set-task-start-now">Now</button>
+              <button class="task-clear-time-button" type="button" data-action="clear-task-time">Todo</button>
               <strong id="taskStartLabel">${TabOutShared.escapeHtml(timeFromMinutes(startMinutes))}</strong>
             </span>
             <input id="taskStartSlider" type="range" min="420" max="1320" step="1" value="${safeStart}">
@@ -559,7 +548,20 @@ window.TabOutTasks = (() => {
             <span>Duration <strong id="taskDurationLabel">${TabOutShared.escapeHtml(formatMinutes(durationMinutes))}</strong></span>
             <input id="taskDurationSlider" type="range" min="15" max="240" step="15" value="${safeDuration}">
           </label>
-        </div>
+        </div>`
+      : `
+        <div class="task-time-empty">
+          <span>No time set. This will stay in Todo.</span>
+          <button class="task-add-time-button" type="button" data-action="enable-task-time">Add time</button>
+        </div>`;
+
+    return `
+      <form class="task-composer" id="taskComposer" novalidate>
+        <label class="task-composer-field" for="taskTitleInput">
+          Title
+          <input id="taskTitleInput" type="text" autocomplete="off" value="${safeTitle}" placeholder="What are you doing next?">
+        </label>
+        ${timeControls}
         <label class="task-composer-field" for="taskNotesInput">
           Notes
           <textarea id="taskNotesInput" rows="3" placeholder="Optional details">${safeNotes}</textarea>
@@ -657,17 +659,18 @@ window.TabOutTasks = (() => {
         <button class="task-complete-button" type="button" data-action="${completeAction}" data-task-id="${safeId}" aria-label="${completeLabel}"></button>
         <div class="timeline-task-main">
           <div class="timeline-task-head">
-            <button class="task-title-button" type="button" data-action="edit-task" data-task-id="${safeId}">${safeTitle}</button>
+            <div class="task-title-meta">
+              <button class="task-title-button" type="button" data-action="edit-task" data-task-id="${safeId}">${safeTitle}</button>
+              ${tagPill || dueHtml || linkedTabs.length ? `<div class="task-row-meta">${tagPill}${dueHtml}${linkedTabs.length ? `<span class="task-linked-count">${linkedTabs.length} tab${linkedTabs.length === 1 ? '' : 's'}</span>` : ''}</div>` : ''}
+            </div>
             <span class="timeline-task-time">${TabOutShared.escapeHtml(taskTimeLabel(task))}</span>
           </div>
-          ${tagPill || dueHtml || linkedTabs.length ? `<div class="task-row-meta">${tagPill}${dueHtml}${linkedTabs.length ? `<span class="task-linked-count">${linkedTabs.length} tab${linkedTabs.length === 1 ? '' : 's'}</span>` : ''}</div>` : ''}
           ${notesHtml}
           ${linkedHtml}
           ${renderTabPicker(task, linkableTabs)}
         </div>
         <div class="timeline-task-actions">
           <button type="button" data-action="toggle-task-tab-picker" data-task-id="${safeId}">Link one tab</button>
-          <button type="button" data-action="open-task-workspace" data-task-id="${safeId}" ${linkedTabs.length ? '' : 'disabled'}>Open tabs</button>
           <button type="button" data-action="edit-task" data-task-id="${safeId}">Edit</button>
           <button class="timeline-delete-button" type="button" data-action="delete-task" data-task-id="${safeId}">Delete</button>
         </div>
@@ -696,10 +699,6 @@ window.TabOutTasks = (() => {
       .filter(task => minutesFromTime(task.startTime) !== null)
       .slice()
       .sort((a, b) => taskSortValue(a) - taskSortValue(b));
-    const unscheduled = tasksForDate
-      .filter(task => minutesFromTime(task.startTime) === null)
-      .slice()
-      .sort((a, b) => Date.parse(a.createdAt || '') - Date.parse(b.createdAt || ''));
 
     const startHour = 7;
     const baseEndHour = 22;
@@ -750,15 +749,8 @@ window.TabOutTasks = (() => {
     }
     scheduledRows.push(renderGap(cursor, endMinute));
 
-    const empty = !tasksForDate.length
+    const empty = !scheduled.length
       ? '<div class="tasks-empty timeline-empty">No tasks planned for this day.</div>'
-      : '';
-    const unscheduledHtml = unscheduled.length
-      ? `
-        <section class="unscheduled-tasks">
-          <div class="timeline-subhead">Unscheduled</div>
-          ${unscheduled.map(task => renderTimelineTask(task, tagsById, linkableTabs)).join('')}
-        </section>`
       : '';
     const outsideHtml = outsideWindow.length
       ? `
@@ -770,10 +762,56 @@ window.TabOutTasks = (() => {
 
     return `
       ${empty}
-      ${unscheduledHtml}
       ${outsideHtml}
       <section class="day-timeline" aria-label="Daily timeline">
         ${scheduledRows.join('')}
+      </section>`;
+  }
+
+  function renderTodoItem(task, tagsById, linkableTabs = []) {
+    const safeId = TabOutShared.escapeHtml(task.id);
+    const safeTitle = TabOutShared.escapeHtml(task.title);
+    const safeNotes = TabOutShared.escapeHtml(task.notes || '');
+    const tagPill = task.tagId ? renderTagPill(tagsById[task.tagId]) : '';
+    const linkedTabs = normalizeLinkedTabs(task.linkedTabs);
+    const linkedHtml = linkedTabs.length
+      ? `<div class="linked-tabs">${linkedTabs.map(tab => renderLinkedTab(tab, task.id)).join('')}</div>`
+      : '';
+    const notesHtml = safeNotes ? `<p>${safeNotes}</p>` : '';
+
+    return `
+      <article class="todo-item" data-task-id="${safeId}">
+        <button class="task-complete-button" type="button" data-action="complete-task" data-task-id="${safeId}" aria-label="Complete ${safeTitle}"></button>
+        <div class="todo-item-main">
+          <div class="task-title-meta">
+            <button class="task-title-button" type="button" data-action="edit-task" data-task-id="${safeId}">${safeTitle}</button>
+            ${tagPill || linkedTabs.length ? `<div class="task-row-meta">${tagPill}${linkedTabs.length ? `<span class="task-linked-count">${linkedTabs.length} tab${linkedTabs.length === 1 ? '' : 's'}</span>` : ''}</div>` : ''}
+          </div>
+          ${notesHtml}
+          ${linkedHtml}
+          ${renderTabPicker(task, linkableTabs)}
+        </div>
+        <div class="todo-item-actions">
+          <button type="button" data-action="toggle-task-tab-picker" data-task-id="${safeId}">Link one tab</button>
+          <button type="button" data-action="edit-task" data-task-id="${safeId}">Edit</button>
+          <button class="timeline-delete-button" type="button" data-action="delete-task" data-task-id="${safeId}">Delete</button>
+        </div>
+      </article>`;
+  }
+
+  function renderTodoBlock(tasks = [], tagsById = {}, linkableTabs = []) {
+    const todos = todoTasks(tasks);
+    const body = todos.length
+      ? todos.map(task => renderTodoItem(task, tagsById, linkableTabs)).join('')
+      : '<div class="todo-empty">No todos.</div>';
+
+    return `
+      <section class="todo-block" aria-label="Todo tasks">
+        <div class="todo-block-head">
+          <h3>Todo</h3>
+          <span>${todos.length} open</span>
+        </div>
+        <div class="todo-list">${body}</div>
       </section>`;
   }
 
@@ -889,7 +927,7 @@ window.TabOutTasks = (() => {
     const openTasks = activeTasks(tasks);
     const doneTasks = completedTasks(tasks);
     const tagsById = tagById(tags);
-    const tasksForDate = tasks
+    const tasksForDate = scheduledTasks(tasks)
       .filter(task => {
         if (!task) return false;
         if (task.dueDate === selectedDate) return true;
@@ -916,9 +954,9 @@ window.TabOutTasks = (() => {
     if (label) label.textContent = TabOutShared.monthLabel(visibleMonth.year, visibleMonth.monthIndex);
     if (!root) return;
 
-    const [tasks, tags] = await Promise.all([getTasks(), getTaskTags()]);
+    const [tasks, tags, linkableTabs] = await Promise.all([getTasks(), getTaskTags(), getLinkableTabs()]);
     const tagsById = tagById(tags);
-    const grouped = groupTasksByDate(tasks);
+    const grouped = groupTasksByDate(scheduledTasks(tasks));
     const days = TabOutShared.buildMonthDays(visibleMonth.year, visibleMonth.monthIndex);
     const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
       .map(day => `<div class="calendar-weekday">${day}</div>`)
@@ -955,7 +993,6 @@ window.TabOutTasks = (() => {
         </div>`;
     }).join('');
 
-    const selectedTasks = grouped[selectedDate] || [];
     root.innerHTML = `
       <div class="calendar-controls">
         <button type="button" data-action="previous-calendar-month" aria-label="Previous month">Previous</button>
@@ -964,10 +1001,7 @@ window.TabOutTasks = (() => {
       </div>
       <div class="calendar-weekdays">${weekdays}</div>
       <div class="calendar-grid">${cells}</div>
-      <div class="calendar-day-summary">
-        <strong>${TabOutShared.escapeHtml(selectedDate === today ? 'Today' : TabOutShared.formatDateLabel(selectedDate))}</strong>
-        <span>${selectedTasks.length} tasks / ${formatMinutes(plannedMinutes(selectedTasks))} planned</span>
-      </div>`;
+      ${renderTodoBlock(tasks, tagsById, linkableTabs)}`;
   }
 
   function syncComposerFromDom() {
@@ -1026,7 +1060,7 @@ window.TabOutTasks = (() => {
     }
 
     if (action === 'open-task-composer') {
-      resetComposer('create', { dueDate: selectedDate });
+      resetComposer('create', { dueDate: '' });
       await renderTasksDashboard();
       focusTaskTitle();
       return true;
@@ -1089,7 +1123,7 @@ window.TabOutTasks = (() => {
     if (action === 'toggle-task-tab-picker') {
       const taskId = actionEl.dataset.taskId || '';
       tabPickerTaskId = tabPickerTaskId === taskId ? '' : taskId;
-      await renderTasksDashboard();
+      await rerenderTasksAndCalendar();
       return true;
     }
 
@@ -1104,7 +1138,7 @@ window.TabOutTasks = (() => {
         favIconUrl: actionEl.dataset.faviconUrl || '',
       });
       tabPickerTaskId = '';
-      await renderTasksDashboard();
+      await rerenderTasksAndCalendar();
       return true;
     }
 
@@ -1113,14 +1147,7 @@ window.TabOutTasks = (() => {
       const url = actionEl.dataset.tabUrl;
       if (!taskId || !url) return false;
       await detachTabFromTask(taskId, url);
-      await renderTasksDashboard();
-      return true;
-    }
-
-    if (action === 'open-task-workspace') {
-      const taskId = actionEl.dataset.taskId;
-      if (!taskId) return false;
-      await openTaskWorkspace(taskId);
+      await rerenderTasksAndCalendar();
       return true;
     }
 
@@ -1216,6 +1243,20 @@ window.TabOutTasks = (() => {
       return true;
     }
 
+    if (action === 'enable-task-time') {
+      syncComposerFromDom();
+      composerState.startTime = timeFromMinutes(currentRoundedStartMinutes());
+      await renderTasksDashboard();
+      return true;
+    }
+
+    if (action === 'clear-task-time') {
+      syncComposerFromDom();
+      composerState.startTime = '';
+      await renderTasksDashboard();
+      return true;
+    }
+
     return false;
   }
 
@@ -1230,6 +1271,7 @@ window.TabOutTasks = (() => {
     const startInput = form.querySelector('#taskStartSlider');
     const durationInput = form.querySelector('#taskDurationSlider');
     const errorEl = form.querySelector('#taskComposerError');
+    const startTime = startInput ? timeFromMinutes(Number(startInput.value)) : '';
 
     try {
       const visibleDateInput = String(dateInput || '').trim();
@@ -1240,8 +1282,8 @@ window.TabOutTasks = (() => {
         title: titleInput ? titleInput.value : '',
         notes: notesInput ? notesInput.value : '',
         tagId: composerState.tagId,
-        dueDate: composerState.dueDate,
-        startTime: startInput ? timeFromMinutes(Number(startInput.value)) : '',
+        dueDate: composerState.dueDate || (startTime ? selectedDate : ''),
+        startTime,
         durationMinutes: durationInput ? durationInput.value : 60,
       });
       resetComposer();

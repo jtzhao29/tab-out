@@ -2380,7 +2380,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .task-tag-pill,
@@ -3130,9 +3130,13 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 .task-slider-field span {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-columns: auto auto auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
+}
+
+.task-slider-field span:has(#taskDurationLabel) {
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .task-slider-field strong {
@@ -3141,7 +3145,9 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   justify-self: end;
 }
 
-.task-now-button {
+.task-now-button,
+.task-clear-time-button,
+.task-add-time-button {
   border: 1px solid rgba(90, 122, 98, 0.20);
   border-radius: 999px;
   background: rgba(90, 122, 98, 0.08);
@@ -3154,8 +3160,36 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   padding: 4px 8px;
 }
 
+.task-clear-time-button {
+  border-color: rgba(154, 145, 138, 0.24);
+  background: rgba(154, 145, 138, 0.08);
+  color: var(--muted);
+}
+
+.task-time-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px dashed rgba(154, 145, 138, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.48);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 12px;
+}
+
+.task-add-time-button {
+  flex: 0 0 auto;
+}
+
 .task-now-button:hover,
-.task-now-button:focus {
+.task-now-button:focus,
+.task-clear-time-button:hover,
+.task-clear-time-button:focus,
+.task-add-time-button:hover,
+.task-add-time-button:focus {
   border-color: rgba(90, 122, 98, 0.38);
   background: rgba(90, 122, 98, 0.13);
   outline: none;
@@ -3311,6 +3345,20 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
+}
+
+.task-title-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-title-meta .task-title-button {
+  width: auto;
+  max-width: 100%;
+  flex: 0 1 auto;
 }
 
 .timeline-task .task-title-button {
@@ -3538,7 +3586,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .calendar-day-trigger {
-  min-height: 45px;
+  min-height: 36px;
 }
 
 .calendar-day-hours {
@@ -3564,6 +3612,99 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .calendar-day-summary span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.calendar-root .calendar-grid {
+  gap: 5px;
+}
+
+.todo-block {
+  border-top: 1px solid rgba(154, 145, 138, 0.18);
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.todo-block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.todo-block-head h3 {
+  font-family: 'Newsreader', serif;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.todo-block-head span,
+.todo-empty {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.todo-list {
+  display: grid;
+  gap: 7px;
+}
+
+.todo-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  border: 1px solid rgba(154, 145, 138, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.62);
+  padding: 9px;
+  overflow: hidden;
+}
+
+.todo-item-main {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.todo-item .task-title-button {
+  font-size: 12px;
+  text-align: left;
+}
+
+.todo-item p {
+  color: var(--muted);
+  display: -webkit-box;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 5px;
+  max-height: 4.2em;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.todo-item-actions {
+  grid-column: 2;
+  display: flex;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.todo-item-actions button {
+  border: 1px solid rgba(154, 145, 138, 0.24);
+  border-radius: 7px;
+  background: rgba(255, 253, 249, 0.7);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 5px 7px;
+}
+
+.todo-item-actions .timeline-delete-button {
+  color: var(--accent-rose);
 }
 
 @media (max-width: 1180px) {
