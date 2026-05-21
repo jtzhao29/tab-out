@@ -2938,8 +2938,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   grid-row: 1;
   min-width: 0;
   position: static;
-  max-height: 340px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .tasks-panel {
@@ -2972,11 +2972,37 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   min-width: 0;
 }
 
-.missions {
-  columns: 300px;
-  column-gap: 14px;
-  display: block;
+.dashboard-columns .active-section .section-header {
+  margin-bottom: 14px;
+}
+
+.tabs-strip-shell {
+  position: relative;
+}
+
+.dashboard-columns .active-section .missions {
+  position: relative;
+  z-index: 2;
+  columns: auto;
+  display: flex;
+  gap: 12px;
   margin-bottom: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 8px;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.dashboard-columns .active-section .missions::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-columns .active-section .missions.dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  user-select: none;
 }
 
 .mission-card {
@@ -2985,6 +3011,15 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   width: 100%;
   margin: 0 0 14px;
   padding: 15px 17px;
+}
+
+.dashboard-columns .active-section .mission-card {
+  flex: 0 0 280px;
+  width: 280px;
+  min-height: 136px;
+  margin: 0;
+  padding: 12px 13px;
+  scroll-snap-align: start;
 }
 
 .tab-group-card {
@@ -3076,6 +3111,11 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   padding: 8px 4px;
 }
 
+.dashboard-columns .active-section .page-chip {
+  min-height: 34px;
+  padding: 6px 3px;
+}
+
 .page-chip .chip-favicon {
   margin-top: 2px;
 }
@@ -3087,6 +3127,16 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .actions {
   flex-wrap: wrap;
   margin-top: 10px;
+}
+
+.dashboard-columns .active-section .actions {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.dashboard-columns .active-section .action-btn {
+  font-size: 10px;
+  padding: 5px 11px;
 }
 
 .tasks-hero {
@@ -3229,8 +3279,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   position: relative;
   height: auto;
   width: 100%;
-  max-height: 560px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   padding-right: 2px;
   scroll-behavior: smooth;
 }
@@ -3728,7 +3778,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   .dashboard-columns .active-section {
     grid-column: 1 / -1;
     grid-row: 1;
-    max-height: 330px;
+    max-height: none;
   }
 
   .missions {

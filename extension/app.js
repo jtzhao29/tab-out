@@ -754,6 +754,8 @@ const ICONS = {
    ---------------------------------------------------------------- */
 let domainGroups = [];
 let browserTabGroups = [];
+let openTabsDragState = null;
+let suppressNextOpenTabsClick = false;
 
 function resolveBrowserGroupTitle(groupInfo = {}, tabs = [], groupId = '') {
   const explicitTitle = String(groupInfo.title || '').trim();
@@ -901,7 +903,7 @@ function renderDomainCard(group) {
     if (!seen.has(tab.url)) { seen.add(tab.url); uniqueTabs.push(tab); }
   }
 
-  const visibleTabs = uniqueTabs.slice(0, 8);
+  const visibleTabs = uniqueTabs.slice(0, 2);
   const extraCount  = uniqueTabs.length - visibleTabs.length;
 
   const pageChips = visibleTabs.map(tab => {
@@ -932,7 +934,7 @@ function renderDomainCard(group) {
         </button>
       </div>
     </div>`;
-  }).join('') + (extraCount > 0 ? buildOverflowChips(uniqueTabs.slice(8), urlCounts) : '');
+  }).join('') + (extraCount > 0 ? buildOverflowChips(uniqueTabs.slice(2), urlCounts) : '');
 
   let actionsHtml = `
     <button class="action-btn close-tabs" data-action="close-domain-tabs" data-domain-id="${stableId}">
@@ -1001,6 +1003,46 @@ function renderBrowserTabGroupCard(group) {
         <div class="tab-stack">${previewTabs}${extra}</div>
       </div>
     </div>`;
+}
+
+function beginOpenTabsDrag(event) {
+  const strip = event.target.closest?.('#openTabsMissions');
+  if (!strip || event.button !== 0 || event.target.closest('button, a')) return;
+  if (strip.scrollWidth <= strip.clientWidth) return;
+
+  openTabsDragState = {
+    strip,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startScrollLeft: strip.scrollLeft,
+    dragging: false,
+  };
+  strip.setPointerCapture?.(event.pointerId);
+}
+
+function moveOpenTabsDrag(event) {
+  if (!openTabsDragState || openTabsDragState.pointerId !== event.pointerId) return;
+
+  const deltaX = event.clientX - openTabsDragState.startX;
+  if (Math.abs(deltaX) > 4) openTabsDragState.dragging = true;
+  if (!openTabsDragState.dragging) return;
+
+  event.preventDefault();
+  openTabsDragState.strip.classList.add('dragging');
+  openTabsDragState.strip.scrollLeft = openTabsDragState.startScrollLeft - deltaX;
+}
+
+function endOpenTabsDrag(event) {
+  if (!openTabsDragState || openTabsDragState.pointerId !== event.pointerId) return;
+
+  const { strip, dragging } = openTabsDragState;
+  strip.classList.remove('dragging');
+  strip.releasePointerCapture?.(event.pointerId);
+  openTabsDragState = null;
+  if (dragging) {
+    suppressNextOpenTabsClick = true;
+    window.setTimeout(() => { suppressNextOpenTabsClick = false; }, 0);
+  }
 }
 
 
@@ -1376,6 +1418,12 @@ async function renderDashboard() {
    ---------------------------------------------------------------- */
 
 document.addEventListener('click', async (e) => {
+  if (suppressNextOpenTabsClick && e.target.closest?.('#openTabsMissions')) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+
   // Walk up the DOM to find the nearest element with data-action
   const actionEl = e.target.closest('[data-action]');
   if (!actionEl) return;
@@ -1633,6 +1681,21 @@ document.addEventListener('click', async (e) => {
     return;
   }
 });
+
+document.addEventListener('wheel', (e) => {
+  const strip = e.target.closest?.('#openTabsMissions');
+  if (!strip) return;
+  if (strip.scrollWidth <= strip.clientWidth) return;
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+
+  e.preventDefault();
+  strip.scrollLeft += e.deltaY;
+}, { passive: false });
+
+document.addEventListener('pointerdown', beginOpenTabsDrag);
+document.addEventListener('pointermove', moveOpenTabsDrag);
+document.addEventListener('pointerup', endOpenTabsDrag);
+document.addEventListener('pointercancel', endOpenTabsDrag);
 
 document.addEventListener('submit', async (e) => {
   if (window.TabOutTasks && await window.TabOutTasks.handleTaskSubmit(e)) return;
