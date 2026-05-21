@@ -25,6 +25,7 @@
 
 // All open tabs — populated by fetchOpenTabs()
 let openTabs = [];
+let tabGroupInfoById = {};
 
 function realOpenTabCount() {
   return openTabs.filter(tab => tab && !tab.isTabOut).length;
@@ -43,12 +44,33 @@ async function fetchOpenTabs() {
     const newtabUrl = `chrome-extension://${extensionId}/index.html`;
 
     const tabs = await chrome.tabs.query({});
+    const groupIds = [...new Set(tabs
+      .map(t => t.groupId)
+      .filter(id => Number.isInteger(id) && id !== -1))];
+    tabGroupInfoById = {};
+    if (chrome.tabGroups && groupIds.length > 0) {
+      const groupEntries = await Promise.all(groupIds.map(async id => {
+        try {
+          const group = await chrome.tabGroups.get(id);
+          return [id, group];
+        } catch {
+          return [id, null];
+        }
+      }));
+      tabGroupInfoById = groupEntries.reduce((out, [id, group]) => {
+        if (group) out[id] = group;
+        return out;
+      }, {});
+    }
     openTabs = tabs.map(t => ({
       id:       t.id,
       url:      t.url,
       title:    t.title,
       windowId: t.windowId,
       active:   t.active,
+      groupId:  Number.isInteger(t.groupId) ? t.groupId : -1,
+      groupTitle: tabGroupInfoById[t.groupId]?.title || '',
+      groupColor: tabGroupInfoById[t.groupId]?.color || '',
       // Flag Tab Out's own pages so we can detect duplicate new tabs
       isTabOut: t.url === newtabUrl || t.url === 'chrome://newtab/',
     }));
@@ -232,7 +254,7 @@ async function closeTabOutDupes() {
 async function saveTabForLater(tab) {
   const { deferred = [] } = await chrome.storage.local.get('deferred');
   deferred.push({
-    id:        Date.now().toString(),
+    id:        TabOutShared.makeId('deferred'),
     url:       tab.url,
     title:     tab.title,
     savedAt:   new Date().toISOString(),
@@ -240,6 +262,26 @@ async function saveTabForLater(tab) {
     dismissed: false,
   });
   await chrome.storage.local.set({ deferred });
+}
+
+async function saveTabsForLater(tabs = [], metadata = {}) {
+  const safeTabs = tabs.filter(tab => tab && tab.url);
+  if (!safeTabs.length) return [];
+
+  const { deferred = [] } = await chrome.storage.local.get('deferred');
+  const savedAt = new Date().toISOString();
+  const nextItems = safeTabs.map(tab => ({
+    id: TabOutShared.makeId('deferred'),
+    url: tab.url,
+    title: tab.title || tab.url,
+    savedAt,
+    completed: false,
+    dismissed: false,
+    source: metadata.source || '',
+    groupTitle: metadata.groupTitle || '',
+  }));
+  await chrome.storage.local.set({ deferred: [...deferred, ...nextItems] });
+  return nextItems;
 }
 
 /**
@@ -711,6 +753,29 @@ const ICONS = {
    IN-MEMORY STORE FOR OPEN-TAB GROUPS
    ---------------------------------------------------------------- */
 let domainGroups = [];
+let browserTabGroups = [];
+
+function resolveBrowserGroupTitle(groupInfo = {}, tabs = [], groupId = '') {
+  const explicitTitle = String(groupInfo.title || '').trim();
+  if (explicitTitle) return explicitTitle;
+
+  const hostCounts = {};
+  for (const tab of tabs) {
+    try {
+      const host = new URL(tab.url).hostname;
+      if (host) hostCounts[host] = (hostCounts[host] || 0) + 1;
+    } catch {}
+  }
+
+  const commonHost = Object.entries(hostCounts)
+    .sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (commonHost) return friendlyDomain(commonHost);
+
+  const firstTitle = cleanTitle(stripTitleNoise(tabs[0]?.title || ''), '');
+  if (firstTitle) return firstTitle;
+
+  return `Tab group ${groupId}`;
+}
 
 
 /* ----------------------------------------------------------------
@@ -898,6 +963,42 @@ function renderDomainCard(group) {
       <div class="mission-meta">
         <div class="mission-page-count">${tabCount}</div>
         <div class="mission-page-label">tabs</div>
+      </div>
+    </div>`;
+}
+
+function renderBrowserTabGroupCard(group) {
+  const tabs = group.tabs || [];
+  const tabCount = tabs.length;
+  const safeGroupId = TabOutShared.escapeHtml(group.groupId);
+  const safeTitle = TabOutShared.escapeHtml(resolveBrowserGroupTitle(group, tabs, group.groupId));
+  const safeColor = TabOutShared.escapeHtml(group.color || 'grey');
+  const previewTabs = tabs.slice(0, 5).map((tab, index) => {
+    const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
+    const safeUrl = TabOutShared.escapeHtml(tab.url || '');
+    const safeLabel = TabOutShared.escapeHtml(label);
+    const safeFullTitle = TabOutShared.escapeHtml(label);
+    let faviconUrl = '';
+    try { faviconUrl = TabOutShared.faviconUrl(tab.url, 16); } catch {}
+    const safeFaviconUrl = TabOutShared.escapeHtml(faviconUrl);
+    return `
+      <button class="tab-stack-card" type="button" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeFullTitle}" style="--stack-index:${index}">
+        ${safeFaviconUrl ? `<img class="chip-favicon" src="${safeFaviconUrl}" alt="">` : ''}
+        <span>${safeLabel}</span>
+      </button>`;
+  }).join('');
+  const extra = tabCount > 5
+    ? `<div class="tab-stack-extra">+${tabCount - 5} more</div>`
+    : '';
+
+  return `
+    <div class="mission-card tab-group-card has-neutral-bar" data-browser-group-id="${safeGroupId}" data-tab-group-color="${safeColor}">
+      <div class="mission-content">
+        <div class="mission-top">
+          <span class="mission-name">${safeTitle}</span>
+          <span class="open-tabs-badge">${ICONS.tabs}${tabCount} grouped</span>
+        </div>
+        <div class="tab-stack">${previewTabs}${extra}</div>
       </div>
     </div>`;
 }
@@ -1103,7 +1204,9 @@ async function renderStaticDashboard() {
   }
 
   domainGroups = [];
+  browserTabGroups = [];
   const groupMap    = {};
+  const browserGroupMap = {};
   const landingTabs = [];
 
   // Custom group rules from config.local.js (if any)
@@ -1128,6 +1231,20 @@ async function renderStaticDashboard() {
 
   for (const tab of realTabs) {
     try {
+      if (Number.isInteger(tab.groupId) && tab.groupId !== -1) {
+        if (!browserGroupMap[tab.groupId]) {
+          const groupInfo = tabGroupInfoById[tab.groupId] || {};
+          browserGroupMap[tab.groupId] = {
+            groupId: tab.groupId,
+            title: groupInfo.title || tab.groupTitle || '',
+            color: groupInfo.color || tab.groupColor || 'grey',
+            tabs: [],
+          };
+        }
+        browserGroupMap[tab.groupId].tabs.push(tab);
+        continue;
+      }
+
       if (isLandingPage(tab.url)) {
         landingTabs.push(tab);
         continue;
@@ -1161,6 +1278,9 @@ async function renderStaticDashboard() {
     groupMap['__landing-pages__'] = { domain: '__landing-pages__', tabs: landingTabs };
   }
 
+  browserTabGroups = Object.values(browserGroupMap)
+    .sort((a, b) => b.tabs.length - a.tabs.length);
+
   // Sort: landing pages first, then domains from landing page sites, then by tab count
   // Collect exact hostnames and suffix patterns for priority sorting
   const landingHostnames = new Set(LANDING_PAGE_PATTERNS.map(p => p.hostname).filter(Boolean));
@@ -1189,10 +1309,16 @@ async function renderStaticDashboard() {
 
   if (dashboardSettings?.sections?.openTabs === false) {
     if (openTabsSection) openTabsSection.hidden = true;
-  } else if (domainGroups.length > 0 && openTabsSection) {
+  } else if ((domainGroups.length > 0 || browserTabGroups.length > 0) && openTabsSection) {
     if (openTabsSectionTitle) openTabsSectionTitle.textContent = 'Open tabs';
-    openTabsSectionCount.innerHTML = `${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''} &nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:3px 10px;">${ICONS.close} Close all ${realTabs.length} tabs</button>`;
-    openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
+    const groupLabel = browserTabGroups.length
+      ? `${browserTabGroups.length} group${browserTabGroups.length !== 1 ? 's' : ''} / `
+      : '';
+    openTabsSectionCount.innerHTML = `${groupLabel}${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''} &nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:3px 10px;">${ICONS.close} Close all ${realTabs.length} tabs</button>`;
+    openTabsMissionsEl.innerHTML = [
+      ...browserTabGroups.map(g => renderBrowserTabGroupCard(g)),
+      ...domainGroups.map(g => renderDomainCard(g)),
+    ].join('');
     openTabsSection.hidden = false;
     openTabsSection.style.display = 'block';
   } else if (openTabsSection) {

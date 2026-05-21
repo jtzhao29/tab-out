@@ -3,7 +3,7 @@
   "name": "Tab Out",
   "version": "1.0.0",
   "description": "A local-first new tab dashboard for open tabs, favorite sites, tasks, and calendar planning.",
-  "permissions": ["tabs", "activeTab", "storage", "favicon"],
+  "permissions": ["tabs", "tabGroups", "activeTab", "storage", "favicon"],
   "chrome_url_overrides": { "newtab": "index.html" },
   "background": { "service_worker": "background.js" },
   "action": {

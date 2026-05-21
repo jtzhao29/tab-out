@@ -6,19 +6,30 @@ window.TabOutTasks = (() => {
   const TAG_SEEDED_KEY = 'taskTagsSeeded';
   const TAG_COLORS = ['#6c6386', '#4f745e', '#b0623f', '#9a5655', '#4d6775', '#b4873c'];
   const STARTER_TAGS = [
-    { id: 'tag_design', name: 'Design', color: '#6c6386' },
-    { id: 'tag_work', name: 'Work', color: '#4f745e' },
+    { id: 'tag_study', name: 'Study', color: '#6c6386' },
+    { id: 'tag_research', name: 'Research', color: '#4f745e' },
     { id: 'tag_personal', name: 'Personal', color: '#b0623f' },
-    { id: 'tag_urgent', name: 'Urgent', color: '#9a5655' },
   ];
 
   const now = new Date();
-  let composerState = { mode: 'closed', taskId: null, title: '', notes: '', tagId: '', dueDate: '' };
+  const today = TabOutShared.todayString(now);
+  const visibleMonth = { year: now.getFullYear(), monthIndex: now.getMonth() };
+  let selectedDate = today;
+  let composerState = {
+    mode: 'closed',
+    taskId: null,
+    title: '',
+    notes: '',
+    tagId: '',
+    dueDate: today,
+    startTime: '',
+    durationMinutes: 60,
+  };
   let openPropertyMenu = '';
   let tagSearch = '';
   let dateInput = '';
   let newTagColor = TAG_COLORS[0];
-  const visibleMonth = { year: now.getFullYear(), monthIndex: now.getMonth() };
+  let tabPickerTaskId = '';
 
   async function getTasks() {
     const { [TASKS_KEY]: tasks } = await chrome.storage.local.get(TASKS_KEY);
@@ -44,11 +55,15 @@ window.TabOutTasks = (() => {
       [TAG_SEEDED_KEY]: taskTagsSeeded,
     } = await chrome.storage.local.get([TAGS_KEY, TAG_SEEDED_KEY]);
     const existingTags = Array.isArray(taskTags) ? taskTags : [];
-    if (!taskTagsSeeded && existingTags.length > 0) {
-      await chrome.storage.local.set({ [TAG_SEEDED_KEY]: true });
-      return existingTags;
+    const migratedTags = migrateTagNames(existingTags);
+    if (JSON.stringify(migratedTags) !== JSON.stringify(existingTags)) {
+      await chrome.storage.local.set({ [TAGS_KEY]: migratedTags });
     }
-    if (taskTagsSeeded || existingTags.length > 0) return existingTags;
+    if (!taskTagsSeeded && migratedTags.length > 0) {
+      await chrome.storage.local.set({ [TAG_SEEDED_KEY]: true });
+      return migratedTags;
+    }
+    if (taskTagsSeeded || migratedTags.length > 0) return migratedTags;
 
     const createdAt = new Date().toISOString();
     const seededTags = STARTER_TAGS.map(tag => ({ ...tag, createdAt }));
@@ -59,12 +74,73 @@ window.TabOutTasks = (() => {
     return seededTags;
   }
 
+  function migrateTagNames(tags = []) {
+    const replacements = {
+      '学习': 'Study',
+      '科研': 'Research',
+      personal: 'Personal',
+    };
+    return tags.map(tag => {
+      if (!tag || typeof tag !== 'object') return tag;
+      const currentName = String(tag.name || '');
+      const nextName = replacements[currentName];
+      return nextName ? { ...tag, name: nextName } : tag;
+    });
+  }
+
+  function isValidTime(value) {
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ''));
+  }
+
+  function minutesFromTime(value) {
+    if (!isValidTime(value)) return null;
+    const [hours, minutes] = value.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  function timeFromMinutes(total) {
+    const clamped = Math.max(0, Math.min(1439, Number(total) || 0));
+    const hours = String(Math.floor(clamped / 60)).padStart(2, '0');
+    const minutes = String(clamped % 60).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+
+  function normalizeDuration(value) {
+    const minutes = Number.parseInt(value, 10);
+    if (!Number.isFinite(minutes)) return 60;
+    return Math.max(15, Math.min(480, minutes));
+  }
+
+  function normalizeLinkedTabs(tabs) {
+    if (!Array.isArray(tabs)) return [];
+    const seen = new Set();
+    return tabs
+      .filter(tab => tab && tab.url)
+      .map(tab => ({
+        tabId: Number.isFinite(tab.tabId) ? tab.tabId : (Number.isFinite(tab.id) ? tab.id : null),
+        windowId: Number.isFinite(tab.windowId) ? tab.windowId : null,
+        url: String(tab.url || ''),
+        title: String(tab.title || tab.url || ''),
+        favIconUrl: String(tab.favIconUrl || ''),
+        attachedAt: tab.attachedAt || new Date().toISOString(),
+      }))
+      .filter(tab => {
+        const key = tab.url;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+
   function normalizeTaskDraft(input = {}) {
     const title = String(input.title || '').trim();
     if (!title) throw new Error('Enter a task title.');
 
     const dueDate = String(input.dueDate || '').trim();
     if (dueDate && !TabOutShared.isValidDateString(dueDate)) throw new Error('Use YYYY-MM-DD.');
+
+    const startTime = String(input.startTime || '').trim();
+    if (startTime && !isValidTime(startTime)) throw new Error('Use HH:MM time.');
 
     const updatedAt = new Date().toISOString();
     const createdAt = input.createdAt || updatedAt;
@@ -76,6 +152,9 @@ window.TabOutTasks = (() => {
       notes: String(input.notes || '').trim(),
       tagId: String(input.tagId || '').trim(),
       dueDate,
+      startTime,
+      durationMinutes: normalizeDuration(input.durationMinutes),
+      linkedTabs: normalizeLinkedTabs(input.linkedTabs),
       completed,
       createdAt,
       updatedAt,
@@ -92,11 +171,8 @@ window.TabOutTasks = (() => {
       ? { ...existing, ...input, id, createdAt: existing.createdAt }
       : input);
 
-    if (index === -1) {
-      tasks.push(task);
-    } else {
-      tasks[index] = task;
-    }
+    if (index === -1) tasks.push(task);
+    else tasks[index] = task;
 
     await setTasks(tasks);
     return task;
@@ -114,6 +190,7 @@ window.TabOutTasks = (() => {
     const completedAt = new Date().toISOString();
     const task = {
       ...tasks[index],
+      dueDate: tasks[index].dueDate || selectedDate || today,
       completed: true,
       completedAt,
       updatedAt: completedAt,
@@ -121,6 +198,39 @@ window.TabOutTasks = (() => {
     tasks[index] = task;
     await setTasks(tasks);
     return task;
+  }
+
+  async function restoreTask(id) {
+    const targetId = String(id || '').trim();
+    if (!targetId) return null;
+
+    const tasks = await getTasks();
+    const index = tasks.findIndex(task => task && task.id === targetId);
+    if (index === -1) return null;
+
+    const updatedAt = new Date().toISOString();
+    const task = {
+      ...tasks[index],
+      completed: false,
+      completedAt: null,
+      updatedAt,
+    };
+    tasks[index] = task;
+    await setTasks(tasks);
+    return task;
+  }
+
+  async function deleteTask(id) {
+    const targetId = String(id || '').trim();
+    if (!targetId) return null;
+
+    const tasks = await getTasks();
+    const index = tasks.findIndex(task => task && task.id === targetId);
+    if (index === -1) return null;
+
+    const [removed] = tasks.splice(index, 1);
+    await setTasks(tasks);
+    return removed || null;
   }
 
   async function createTag(name, color = TAG_COLORS[0]) {
@@ -160,46 +270,24 @@ window.TabOutTasks = (() => {
       });
   }
 
-  async function restoreTask(id) {
-    const targetId = String(id || '').trim();
-    if (!targetId) return null;
-
-    const tasks = await getTasks();
-    const index = tasks.findIndex(task => task && task.id === targetId);
-    if (index === -1) return null;
-
-    const updatedAt = new Date().toISOString();
-    const task = {
-      ...tasks[index],
-      completed: false,
-      completedAt: null,
-      updatedAt,
-    };
-    tasks[index] = task;
-    await setTasks(tasks);
-    return task;
-  }
-
-  async function deleteTask(id) {
-    const targetId = String(id || '').trim();
-    if (!targetId) return null;
-
-    const tasks = await getTasks();
-    const index = tasks.findIndex(task => task && task.id === targetId);
-    if (index === -1) return null;
-
-    const [removed] = tasks.splice(index, 1);
-    await setTasks(tasks);
-    return removed || null;
-  }
-
   function groupTasksByDate(tasks = []) {
-    return activeTasks(tasks).reduce((out, task) => {
+    return tasks.filter(Boolean).reduce((out, task) => {
       if (!TabOutShared.isValidDateString(task.dueDate)) return out;
       if (!out[task.dueDate]) out[task.dueDate] = [];
       out[task.dueDate].push(task);
       return out;
     }, {});
+  }
+
+  function tagById(tags = []) {
+    return tags.reduce((out, tag) => {
+      if (tag && tag.id) out[tag.id] = tag;
+      return out;
+    }, {});
+  }
+
+  function safeTagColor(color) {
+    return TAG_COLORS.includes(color) ? color : TAG_COLORS[0];
   }
 
   function resetComposer(mode = 'closed', task = {}) {
@@ -209,7 +297,9 @@ window.TabOutTasks = (() => {
       title: task.title || '',
       notes: task.notes || '',
       tagId: task.tagId || '',
-      dueDate: task.dueDate || '',
+      dueDate: task.dueDate || selectedDate || today,
+      startTime: task.startTime || '',
+      durationMinutes: normalizeDuration(task.durationMinutes || 60),
     };
     openPropertyMenu = '';
     tagSearch = '';
@@ -222,15 +312,13 @@ window.TabOutTasks = (() => {
     if (input) input.focus();
   }
 
-  function tagById(tags = []) {
-    return tags.reduce((out, tag) => {
-      if (tag && tag.id) out[tag.id] = tag;
-      return out;
-    }, {});
-  }
-
-  function safeTagColor(color) {
-    return TAG_COLORS.includes(color) ? color : TAG_COLORS[0];
+  function focusById(id, selectionStart = null, selectionEnd = null) {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.focus();
+    if (selectionStart !== null && typeof input.setSelectionRange === 'function') {
+      input.setSelectionRange(selectionStart, selectionEnd ?? selectionStart);
+    }
   }
 
   function calendarPopoverId(dateString) {
@@ -245,18 +333,125 @@ window.TabOutTasks = (() => {
     return `<span class="task-tag-pill" style="--task-tag-color:${safeColor}">${safeName}</span>`;
   }
 
+  function taskSortValue(task) {
+    const start = minutesFromTime(task.startTime);
+    if (start !== null) return start;
+    return 24 * 60 + Date.parse(task.createdAt || '') || 0;
+  }
+
+  function taskTimeLabel(task) {
+    const start = minutesFromTime(task.startTime);
+    if (start === null) return 'Unscheduled';
+    const end = timeFromMinutes(start + normalizeDuration(task.durationMinutes));
+    return `${task.startTime}-${end}`;
+  }
+
+  function plannedMinutes(tasks = []) {
+    return tasks.reduce((sum, task) => sum + (minutesFromTime(task.startTime) === null ? 0 : normalizeDuration(task.durationMinutes)), 0);
+  }
+
+  function formatMinutes(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    if (!hours) return `${rest}m`;
+    if (!rest) return `${hours}h`;
+    return `${hours}h ${rest}m`;
+  }
+
+  function currentRoundedStartMinutes() {
+    const date = new Date();
+    return Math.max(420, Math.min(1320, date.getHours() * 60 + date.getMinutes()));
+  }
+
+  async function getLinkableTabs() {
+    let tabs = [];
+    try {
+      tabs = await chrome.tabs.query({});
+    } catch {
+      return [];
+    }
+    const extensionUrl = `chrome-extension://${chrome.runtime.id}/`;
+    return tabs
+      .filter(tab => {
+        const url = tab.url || '';
+        return url &&
+          !url.startsWith('chrome://') &&
+          !url.startsWith('chrome-extension://') &&
+          !url.startsWith(extensionUrl) &&
+          !url.startsWith('about:') &&
+          !url.startsWith('edge://') &&
+          !url.startsWith('brave://');
+      })
+      .map(tab => ({
+        tabId: tab.id,
+        windowId: tab.windowId,
+        url: tab.url,
+        title: tab.title || tab.url,
+        favIconUrl: tab.favIconUrl || '',
+      }));
+  }
+
+  async function attachTabToTask(taskId, tabPayload) {
+    const tasks = await getTasks();
+    const index = tasks.findIndex(task => task && task.id === taskId);
+    if (index === -1 || !tabPayload?.url) return null;
+    const updatedAt = new Date().toISOString();
+    const existingTabs = normalizeLinkedTabs(tasks[index].linkedTabs);
+    const nextTab = normalizeLinkedTabs([{ ...tabPayload, attachedAt: updatedAt }])[0];
+    tasks[index] = {
+      ...tasks[index],
+      linkedTabs: normalizeLinkedTabs([...existingTabs, nextTab]),
+      updatedAt,
+    };
+    await setTasks(tasks);
+    return tasks[index];
+  }
+
+  async function detachTabFromTask(taskId, url) {
+    const tasks = await getTasks();
+    const index = tasks.findIndex(task => task && task.id === taskId);
+    if (index === -1 || !url) return null;
+    tasks[index] = {
+      ...tasks[index],
+      linkedTabs: normalizeLinkedTabs(tasks[index].linkedTabs).filter(tab => tab.url !== url),
+      updatedAt: new Date().toISOString(),
+    };
+    await setTasks(tasks);
+    return tasks[index];
+  }
+
+  async function openTaskWorkspace(taskId) {
+    const task = (await getTasks()).find(item => item && item.id === taskId);
+    const linkedTabs = normalizeLinkedTabs(task?.linkedTabs);
+    if (!linkedTabs.length) return false;
+
+    let existingTabs = [];
+    try {
+      existingTabs = await chrome.tabs.query({});
+    } catch {
+      existingTabs = [];
+    }
+
+    for (const linked of linkedTabs) {
+      const match = existingTabs.find(tab => tab.url === linked.url);
+      if (match) {
+        await chrome.tabs.update(match.id, { active: true });
+        await chrome.windows.update(match.windowId, { focused: true });
+      } else {
+        await chrome.tabs.create({ url: linked.url, active: false });
+      }
+    }
+    return true;
+  }
+
   function renderTagMenu(tags = []) {
     if (openPropertyMenu !== 'tag') return '';
 
     const query = String(tagSearch || '').trim();
     const lowerQuery = query.toLowerCase();
     const safeSearch = TabOutShared.escapeHtml(tagSearch);
-    const matchingTags = tags.filter(tag =>
-      String(tag?.name || '').toLowerCase().includes(lowerQuery)
-    );
-    const hasExactMatch = tags.some(tag =>
-      String(tag?.name || '').trim().toLowerCase() === lowerQuery
-    );
+    const matchingTags = tags.filter(tag => String(tag?.name || '').toLowerCase().includes(lowerQuery));
+    const hasExactMatch = tags.some(tag => String(tag?.name || '').trim().toLowerCase() === lowerQuery);
     const tagOptions = matchingTags.map(tag => {
       const safeId = TabOutShared.escapeHtml(tag.id);
       const safeName = TabOutShared.escapeHtml(tag.name);
@@ -296,7 +491,6 @@ window.TabOutTasks = (() => {
     if (openPropertyMenu !== 'date') return '';
 
     const currentInput = dateInput || composerState.dueDate;
-    const today = TabOutShared.todayString();
     const tomorrow = TabOutShared.addDays(today, 1);
     const baseDate = composerState.dueDate || (TabOutShared.isValidDateString(dateInput) ? dateInput : today);
     const base = new Date(`${baseDate}T00:00:00`);
@@ -323,31 +517,268 @@ window.TabOutTasks = (() => {
       </div>`;
   }
 
-  function renderTaskRow(task, tagsById) {
+  function renderTasksToolbar(completedCount = 0) {
+    const historyLabel = completedCount ? `Completed ${completedCount}` : 'Completed';
+    return `
+      <div class="tasks-toolbar">
+        <button class="new-task-trigger" type="button" data-action="open-task-composer">New task</button>
+        <button class="completed-tasks-trigger" type="button" data-action="open-completed-tasks">${TabOutShared.escapeHtml(historyLabel)}</button>
+      </div>`;
+  }
+
+  function renderTaskComposer(tags = []) {
+    const safeTitle = TabOutShared.escapeHtml(composerState.title);
+    const safeNotes = TabOutShared.escapeHtml(composerState.notes);
+    const startMinutes = minutesFromTime(composerState.startTime) ?? 540;
+    const durationMinutes = normalizeDuration(composerState.durationMinutes);
+    const safeStart = TabOutShared.escapeHtml(startMinutes);
+    const safeDuration = TabOutShared.escapeHtml(durationMinutes);
+    const tag = composerState.tagId ? tags.find(item => item.id === composerState.tagId) : null;
+    const tagLabel = tag ? tag.name : 'Tag';
+    const dueLabel = TabOutShared.formatDateLabel(composerState.dueDate) || 'Date';
+    const submitLabel = composerState.mode === 'edit' ? 'Save task' : 'Add task';
+    const tagExpanded = openPropertyMenu === 'tag' ? 'true' : 'false';
+    const dateExpanded = openPropertyMenu === 'date' ? 'true' : 'false';
+
+    return `
+      <form class="task-composer" id="taskComposer" novalidate>
+        <label class="task-composer-field" for="taskTitleInput">
+          Title
+          <input id="taskTitleInput" type="text" autocomplete="off" value="${safeTitle}" placeholder="What are you doing next?">
+        </label>
+        <div class="task-time-fields">
+          <label class="task-composer-field task-slider-field" for="taskStartSlider">
+            <span>
+              Start
+              <button class="task-now-button" type="button" data-action="set-task-start-now">Now</button>
+              <strong id="taskStartLabel">${TabOutShared.escapeHtml(timeFromMinutes(startMinutes))}</strong>
+            </span>
+            <input id="taskStartSlider" type="range" min="420" max="1320" step="1" value="${safeStart}">
+          </label>
+          <label class="task-composer-field task-slider-field" for="taskDurationSlider">
+            <span>Duration <strong id="taskDurationLabel">${TabOutShared.escapeHtml(formatMinutes(durationMinutes))}</strong></span>
+            <input id="taskDurationSlider" type="range" min="15" max="240" step="15" value="${safeDuration}">
+          </label>
+        </div>
+        <label class="task-composer-field" for="taskNotesInput">
+          Notes
+          <textarea id="taskNotesInput" rows="3" placeholder="Optional details">${safeNotes}</textarea>
+        </label>
+        <div class="task-composer-properties" aria-label="Task properties">
+          <button class="task-property-button" type="button" data-action="toggle-tag-menu" aria-expanded="${tagExpanded}" aria-controls="taskPropertyMenu">${TabOutShared.escapeHtml(tagLabel)}</button>
+          <button class="task-property-button" type="button" data-action="toggle-date-menu" aria-expanded="${dateExpanded}" aria-controls="taskPropertyMenu">${TabOutShared.escapeHtml(dueLabel)}</button>
+        </div>
+        <div id="taskPropertyMenu">${renderTagMenu(tags)}${renderDateMenu()}</div>
+        <div class="task-composer-error" id="taskComposerError" role="alert"></div>
+        <div class="task-composer-actions">
+          <button class="task-submit-button" type="submit">${submitLabel}</button>
+          <button class="task-cancel-button" type="button" data-action="close-task-composer">Cancel</button>
+        </div>
+      </form>`;
+  }
+
+  function renderLinkedTab(tab, taskId) {
+    const safeTaskId = TabOutShared.escapeHtml(taskId);
+    const safeUrl = TabOutShared.escapeHtml(tab.url);
+    const safeTitle = TabOutShared.escapeHtml(tab.title || tab.url);
+    const host = TabOutShared.escapeHtml(TabOutShared.hostnameFromUrl(tab.url) || 'local');
+    let faviconUrl = tab.favIconUrl || '';
+    try { faviconUrl = faviconUrl || TabOutShared.faviconUrl(tab.url, 16); } catch {}
+    const safeFavicon = TabOutShared.escapeHtml(faviconUrl);
+    return `
+      <div class="linked-tab">
+        ${safeFavicon ? `<img src="${safeFavicon}" alt="">` : ''}
+        <button type="button" data-action="focus-linked-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
+          <span>${safeTitle}</span>
+          <small>${host}</small>
+        </button>
+        <button class="linked-tab-remove" type="button" data-action="detach-task-tab" data-task-id="${safeTaskId}" data-tab-url="${safeUrl}" aria-label="Detach tab">&times;</button>
+      </div>`;
+  }
+
+  function renderTabPicker(task, linkableTabs = []) {
+    if (tabPickerTaskId !== task.id) return '';
+    const linkedUrls = new Set(normalizeLinkedTabs(task.linkedTabs).map(tab => tab.url));
+    const safeTaskId = TabOutShared.escapeHtml(task.id);
+    const options = linkableTabs
+      .filter(tab => !linkedUrls.has(tab.url))
+      .slice(0, 12)
+      .map(tab => {
+        const safeUrl = TabOutShared.escapeHtml(tab.url);
+        const safeTitle = TabOutShared.escapeHtml(tab.title || tab.url);
+        const safeHost = TabOutShared.escapeHtml(TabOutShared.hostnameFromUrl(tab.url) || tab.url);
+        const safeWindowId = TabOutShared.escapeHtml(tab.windowId);
+        const safeTabId = TabOutShared.escapeHtml(tab.tabId);
+        const safeFavicon = TabOutShared.escapeHtml(tab.favIconUrl || '');
+        return `
+          <button class="tab-picker-option" type="button" data-action="attach-tab-to-task" data-task-id="${safeTaskId}" data-tab-id="${safeTabId}" data-window-id="${safeWindowId}" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" data-favicon-url="${safeFavicon}">
+            <span class="tab-picker-icon-slot">${safeFavicon ? `<img src="${safeFavicon}" alt="">` : ''}</span>
+            <span class="tab-picker-copy">
+              <strong>${safeTitle}</strong>
+              <small>${safeHost}</small>
+            </span>
+          </button>`;
+      }).join('');
+
+    return `
+      <div class="task-tab-picker">
+        <div class="task-tab-picker-title">Choose one tab to link</div>
+        ${options || '<div class="task-tab-picker-empty">No unlinked tabs available.</div>'}
+      </div>`;
+  }
+
+  function renderTimelineTask(task, tagsById, linkableTabs = [], options = {}) {
     const safeId = TabOutShared.escapeHtml(task.id);
     const safeTitle = TabOutShared.escapeHtml(task.title);
     const safeNotes = TabOutShared.escapeHtml(task.notes || '');
     const tagPill = task.tagId ? renderTagPill(tagsById[task.tagId]) : '';
     const dueLabel = TabOutShared.formatDateLabel(task.dueDate);
-    const dueHtml = dueLabel
-      ? `<span class="task-due-label">${TabOutShared.escapeHtml(dueLabel)}</span>`
+    const dueHtml = dueLabel ? `<span class="task-due-label">${TabOutShared.escapeHtml(dueLabel)}</span>` : '';
+    const linkedTabs = normalizeLinkedTabs(task.linkedTabs);
+    const linkedHtml = linkedTabs.length
+      ? `<div class="linked-tabs">${linkedTabs.map(tab => renderLinkedTab(tab, task.id)).join('')}</div>`
       : '';
-    const notesHtml = safeNotes
-      ? `
-          <span class="task-note-mark">notes</span>
-          <div class="task-notes-popover" role="tooltip">${safeNotes}</div>`
+    const notesHtml = safeNotes ? `<p class="timeline-task-notes">${safeNotes}</p>` : '';
+    const startMinutes = minutesFromTime(task.startTime);
+    const unscheduledClass = startMinutes === null ? ' unscheduled' : '';
+    const completedClass = task.completed ? ' completed' : '';
+    const duration = normalizeDuration(task.durationMinutes);
+    const blockHeight = options.scheduled ? 0 : Math.max(46, duration * (options.pxPerMinute || 0.86));
+    const color = safeTagColor(tagsById[task.tagId]?.color);
+    const completeAction = task.completed ? 'restore-task' : 'complete-task';
+    const completeLabel = task.completed ? `Restore ${safeTitle}` : `Complete ${safeTitle}`;
+    const hourTicks = options.scheduled && startMinutes !== null
+      ? renderTaskHourTicks(startMinutes, startMinutes + duration)
       : '';
 
     return `
-      <div class="task-row" data-task-id="${safeId}">
-        <button class="task-complete-button" type="button" data-action="complete-task" data-task-id="${safeId}" aria-label="Complete ${safeTitle}"></button>
-        <div class="task-row-main">
-          <button class="task-title-button" type="button" data-action="edit-task" data-task-id="${safeId}">${safeTitle}</button>
+      <article class="timeline-task${unscheduledClass}${completedClass}" data-task-id="${safeId}" style="--task-block-height:${blockHeight}px;--task-tag-color:${TabOutShared.escapeHtml(color)}">
+        ${hourTicks}
+        <button class="task-complete-button" type="button" data-action="${completeAction}" data-task-id="${safeId}" aria-label="${completeLabel}"></button>
+        <div class="timeline-task-main">
+          <div class="timeline-task-head">
+            <button class="task-title-button" type="button" data-action="edit-task" data-task-id="${safeId}">${safeTitle}</button>
+            <span class="timeline-task-time">${TabOutShared.escapeHtml(taskTimeLabel(task))}</span>
+          </div>
+          ${tagPill || dueHtml || linkedTabs.length ? `<div class="task-row-meta">${tagPill}${dueHtml}${linkedTabs.length ? `<span class="task-linked-count">${linkedTabs.length} tab${linkedTabs.length === 1 ? '' : 's'}</span>` : ''}</div>` : ''}
           ${notesHtml}
-          ${tagPill || dueHtml ? `<div class="task-row-meta">${tagPill}${dueHtml}</div>` : ''}
+          ${linkedHtml}
+          ${renderTabPicker(task, linkableTabs)}
         </div>
-        <button class="task-edit-button" type="button" data-action="edit-task" data-task-id="${safeId}">Edit</button>
-      </div>`;
+        <div class="timeline-task-actions">
+          <button type="button" data-action="toggle-task-tab-picker" data-task-id="${safeId}">Link one tab</button>
+          <button type="button" data-action="open-task-workspace" data-task-id="${safeId}" ${linkedTabs.length ? '' : 'disabled'}>Open tabs</button>
+          <button type="button" data-action="edit-task" data-task-id="${safeId}">Edit</button>
+          <button class="timeline-delete-button" type="button" data-action="delete-task" data-task-id="${safeId}">Delete</button>
+        </div>
+      </article>`;
+  }
+
+  function renderTaskHourTicks(startMinutes, endMinutes) {
+    if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) return '';
+
+    const duration = endMinutes - startMinutes;
+    const firstHour = Math.ceil(startMinutes / 60) * 60;
+    const ticks = [];
+    for (let minute = firstHour; minute < endMinutes; minute += 60) {
+      if (minute <= startMinutes) continue;
+      const percent = ((minute - startMinutes) / duration) * 100;
+      ticks.push(`
+        <div class="timeline-task-hour-tick" style="--tick-top:${percent}%">
+          ${String(minute / 60).padStart(2, '0')}:00
+        </div>`);
+    }
+    return ticks.join('');
+  }
+
+  function renderTimeline(tasksForDate = [], tagsById = {}, linkableTabs = []) {
+    const scheduled = tasksForDate
+      .filter(task => minutesFromTime(task.startTime) !== null)
+      .slice()
+      .sort((a, b) => taskSortValue(a) - taskSortValue(b));
+    const unscheduled = tasksForDate
+      .filter(task => minutesFromTime(task.startTime) === null)
+      .slice()
+      .sort((a, b) => Date.parse(a.createdAt || '') - Date.parse(b.createdAt || ''));
+
+    const startHour = 7;
+    const baseEndHour = 22;
+    const startMinute = startHour * 60;
+    const pxPerMinute = 0.45;
+    const latestEndMinute = scheduled.reduce((latest, task) => {
+      const start = minutesFromTime(task.startTime);
+      if (start === null || start < startMinute) return latest;
+      return Math.max(latest, start + normalizeDuration(task.durationMinutes));
+    }, baseEndHour * 60);
+    const endMinute = Math.min(24 * 60, Math.ceil(latestEndMinute / 60) * 60);
+    const endHour = endMinute / 60;
+
+    const outsideWindow = scheduled.filter(task => {
+      const minutes = minutesFromTime(task.startTime);
+      return minutes < startMinute || minutes > endMinute;
+    });
+    const visibleScheduled = scheduled.filter(task => {
+      const minutes = minutesFromTime(task.startTime);
+      return minutes >= startMinute && minutes <= endMinute;
+    });
+    function renderGap(fromMinute, toMinute) {
+      if (toMinute <= fromMinute) return '';
+      const gapMinutes = toMinute - fromMinute;
+      const height = Math.min(150, Math.max(12, gapMinutes * pxPerMinute));
+      const markers = [];
+      const firstHour = Math.ceil(fromMinute / 60) * 60;
+      for (let minute = firstHour; minute <= toMinute; minute += 60) {
+        if (minute < fromMinute || minute > endMinute) continue;
+        const top = Math.max(0, Math.min(height, (minute - fromMinute) / gapMinutes * height));
+        markers.push(`
+          <div class="timeline-hour" style="--hour-top:${top}px">
+            <div class="timeline-hour-label">${String(minute / 60).padStart(2, '0')}:00</div>
+            <div class="timeline-hour-line"></div>
+          </div>`);
+      }
+      return `<div class="timeline-gap" style="--gap-height:${height}px">${markers.join('')}</div>`;
+    }
+
+    let cursor = startMinute;
+    const scheduledRows = [];
+    for (const task of visibleScheduled) {
+      const taskStart = minutesFromTime(task.startTime);
+      const taskEnd = taskStart + normalizeDuration(task.durationMinutes);
+      scheduledRows.push(renderGap(cursor, taskStart));
+      scheduledRows.push(renderTimelineTask(task, tagsById, linkableTabs, { scheduled: true }));
+      cursor = Math.max(cursor, taskEnd);
+    }
+    scheduledRows.push(renderGap(cursor, endMinute));
+
+    const empty = !tasksForDate.length
+      ? '<div class="tasks-empty timeline-empty">No tasks planned for this day.</div>'
+      : '';
+    const unscheduledHtml = unscheduled.length
+      ? `
+        <section class="unscheduled-tasks">
+          <div class="timeline-subhead">Unscheduled</div>
+          ${unscheduled.map(task => renderTimelineTask(task, tagsById, linkableTabs)).join('')}
+        </section>`
+      : '';
+    const outsideHtml = outsideWindow.length
+      ? `
+        <section class="unscheduled-tasks">
+          <div class="timeline-subhead">Outside timeline</div>
+          ${outsideWindow.map(task => renderTimelineTask(task, tagsById, linkableTabs)).join('')}
+        </section>`
+      : '';
+
+    return `
+      ${empty}
+      ${unscheduledHtml}
+      ${outsideHtml}
+      <section class="day-timeline" aria-label="Daily timeline">
+        ${scheduledRows.join('')}
+      </section>`;
+  }
+
+  function renderTaskRow(task, tagsById) {
+    return renderTimelineTask(task, tagsById, []);
   }
 
   function completedAtLabel(task) {
@@ -361,12 +792,8 @@ window.TabOutTasks = (() => {
     const safeNotes = TabOutShared.escapeHtml(task.notes || '');
     const tagPill = task.tagId ? renderTagPill(tagsById[task.tagId]) : '';
     const dueLabel = TabOutShared.formatDateLabel(task.dueDate);
-    const dueHtml = dueLabel
-      ? `<span class="task-due-label">${TabOutShared.escapeHtml(dueLabel)}</span>`
-      : '';
-    const notesHtml = safeNotes
-      ? `<p class="completed-task-notes">${safeNotes}</p>`
-      : '';
+    const dueHtml = dueLabel ? `<span class="task-due-label">${TabOutShared.escapeHtml(dueLabel)}</span>` : '';
+    const notesHtml = safeNotes ? `<p class="completed-task-notes">${safeNotes}</p>` : '';
 
     return `
       <article class="completed-task-item" data-task-id="${safeId}">
@@ -417,54 +844,6 @@ window.TabOutTasks = (() => {
     return true;
   }
 
-  function renderNewTaskTrigger() {
-    return '<button class="new-task-trigger" type="button" data-action="open-task-composer">New task</button>';
-  }
-
-  function renderTasksToolbar(completedCount = 0) {
-    const historyLabel = completedCount
-      ? `Completed ${completedCount}`
-      : 'Completed';
-    return `
-      <div class="tasks-toolbar">
-        ${renderNewTaskTrigger()}
-        <button class="completed-tasks-trigger" type="button" data-action="open-completed-tasks">${TabOutShared.escapeHtml(historyLabel)}</button>
-      </div>`;
-  }
-
-  function renderTaskComposer(tags = []) {
-    const safeTitle = TabOutShared.escapeHtml(composerState.title);
-    const safeNotes = TabOutShared.escapeHtml(composerState.notes);
-    const tag = composerState.tagId ? tags.find(item => item.id === composerState.tagId) : null;
-    const tagLabel = tag ? tag.name : 'Tag';
-    const dueLabel = TabOutShared.formatDateLabel(composerState.dueDate) || 'Date';
-    const submitLabel = composerState.mode === 'edit' ? 'Save task' : 'Add task';
-    const tagExpanded = openPropertyMenu === 'tag' ? 'true' : 'false';
-    const dateExpanded = openPropertyMenu === 'date' ? 'true' : 'false';
-
-    return `
-      <form class="task-composer" id="taskComposer" novalidate>
-        <label class="task-composer-field" for="taskTitleInput">
-          Title
-          <input id="taskTitleInput" type="text" autocomplete="off" value="${safeTitle}" placeholder="Write the next thing">
-        </label>
-        <label class="task-composer-field" for="taskNotesInput">
-          Notes
-          <textarea id="taskNotesInput" rows="3" placeholder="Optional details">${safeNotes}</textarea>
-        </label>
-        <div class="task-composer-properties" aria-label="Task properties">
-          <button class="task-property-button" type="button" data-action="toggle-tag-menu" aria-expanded="${tagExpanded}" aria-controls="taskPropertyMenu">${TabOutShared.escapeHtml(tagLabel)}</button>
-          <button class="task-property-button" type="button" data-action="toggle-date-menu" aria-expanded="${dateExpanded}" aria-controls="taskPropertyMenu">${TabOutShared.escapeHtml(dueLabel)}</button>
-        </div>
-        <div id="taskPropertyMenu">${renderTagMenu(tags)}${renderDateMenu()}</div>
-        <div class="task-composer-error" id="taskComposerError" role="alert"></div>
-        <div class="task-composer-actions">
-          <button class="task-submit-button" type="submit">${submitLabel}</button>
-          <button class="task-cancel-button" type="button" data-action="close-task-composer">Cancel</button>
-        </div>
-      </form>`;
-  }
-
   function renderCalendarTaskPopover(dateString, tasksForDate = [], tagsById = {}) {
     if (!tasksForDate.length) return '';
 
@@ -484,7 +863,7 @@ window.TabOutTasks = (() => {
           <i class="popover-dot" aria-hidden="true"></i>
           <span>
             <strong class="popover-task-title">${safeTitle}</strong>
-            <small class="popover-task-tag">${safeTagName}</small>
+            <small class="popover-task-tag">${TabOutShared.escapeHtml(taskTimeLabel(task))} &middot; ${safeTagName}</small>
           </span>
         </button>`;
     }).join('');
@@ -506,24 +885,29 @@ window.TabOutTasks = (() => {
     if (!root) return;
 
     const countEl = document.getElementById('tasksCount');
-    const [tasks, tags] = await Promise.all([getTasks(), getTaskTags()]);
+    const [tasks, tags, linkableTabs] = await Promise.all([getTasks(), getTaskTags(), getLinkableTabs()]);
     const openTasks = activeTasks(tasks);
     const doneTasks = completedTasks(tasks);
     const tagsById = tagById(tags);
+    const tasksForDate = tasks
+      .filter(task => {
+        if (!task) return false;
+        if (task.dueDate === selectedDate) return true;
+        return !task.completed && !task.dueDate && selectedDate === today;
+      })
+      .slice()
+      .sort((a, b) => taskSortValue(a) - taskSortValue(b));
+    const minutes = plannedMinutes(tasksForDate);
     const composerHtml = composerState.mode === 'closed'
       ? renderTasksToolbar(doneTasks.length)
       : renderTaskComposer(tags);
-    const emptyHtml = openTasks.length === 0
-      ? '<div class="tasks-empty">No open tasks.</div>'
-      : '';
-    const tasksHtml = openTasks.map(task => renderTaskRow(task, tagsById)).join('');
 
-    if (countEl) countEl.textContent = `${openTasks.length} open`;
+    if (countEl) countEl.textContent = `${tasksForDate.length} planned / ${formatMinutes(minutes)}`;
     const statTasks = document.getElementById('statTasks');
     if (statTasks) statTasks.textContent = String(openTasks.length);
     root.innerHTML = `
       ${composerHtml}
-      <div class="tasks-list">${tasksHtml || emptyHtml}</div>`;
+      ${renderTimeline(tasksForDate, tagsById, linkableTabs)}`;
   }
 
   async function renderCalendar() {
@@ -536,16 +920,17 @@ window.TabOutTasks = (() => {
     const tagsById = tagById(tags);
     const grouped = groupTasksByDate(tasks);
     const days = TabOutShared.buildMonthDays(visibleMonth.year, visibleMonth.monthIndex);
-    const today = TabOutShared.todayString();
     const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
       .map(day => `<div class="calendar-weekday">${day}</div>`)
       .join('');
     const cells = days.map(day => {
       const tasksForDate = grouped[day.dateString] || [];
+      const dayMinutes = plannedMinutes(tasksForDate);
       const classes = [
         'calendar-day',
         day.inMonth ? '' : 'muted',
         day.dateString === today ? 'today' : '',
+        day.dateString === selectedDate ? 'selected' : '',
         tasksForDate.length ? 'has-tasks' : '',
       ].filter(Boolean).join(' ');
       const marks = tasksForDate.slice(0, 4).map(task => {
@@ -558,19 +943,19 @@ window.TabOutTasks = (() => {
       const taskLabel = `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`;
       const safeDate = TabOutShared.escapeHtml(day.dateString);
       const safePopoverId = TabOutShared.escapeHtml(calendarPopoverId(day.dateString));
-      const popupAttrs = taskCount
-        ? ` aria-expanded="false" aria-controls="${safePopoverId}"`
-        : '';
+      const popupAttrs = taskCount ? ` aria-expanded="false" aria-controls="${safePopoverId}"` : '';
       return `
         <div class="${classes}" data-date="${safeDate}">
-          <button class="calendar-day-trigger" type="button" data-action="toggle-calendar-day" data-date="${safeDate}" aria-label="${safeDate}, ${taskLabel}"${popupAttrs}>
+          <button class="calendar-day-trigger" type="button" data-action="select-calendar-day" data-date="${safeDate}" aria-label="${safeDate}, ${taskLabel}"${popupAttrs}>
             <span class="calendar-day-number">${TabOutShared.escapeHtml(day.day)}</span>
             <span class="calendar-marks">${marks}</span>
+            ${dayMinutes ? `<span class="calendar-day-hours">${TabOutShared.escapeHtml(formatMinutes(dayMinutes))}</span>` : ''}
           </button>
           ${renderCalendarTaskPopover(day.dateString, tasksForDate, tagsById)}
         </div>`;
     }).join('');
 
+    const selectedTasks = grouped[selectedDate] || [];
     root.innerHTML = `
       <div class="calendar-controls">
         <button type="button" data-action="previous-calendar-month" aria-label="Previous month">Previous</button>
@@ -578,7 +963,11 @@ window.TabOutTasks = (() => {
         <button type="button" data-action="next-calendar-month" aria-label="Next month">Next</button>
       </div>
       <div class="calendar-weekdays">${weekdays}</div>
-      <div class="calendar-grid">${cells}</div>`;
+      <div class="calendar-grid">${cells}</div>
+      <div class="calendar-day-summary">
+        <strong>${TabOutShared.escapeHtml(selectedDate === today ? 'Today' : TabOutShared.formatDateLabel(selectedDate))}</strong>
+        <span>${selectedTasks.length} tasks / ${formatMinutes(plannedMinutes(selectedTasks))} planned</span>
+      </div>`;
   }
 
   function syncComposerFromDom() {
@@ -587,10 +976,14 @@ window.TabOutTasks = (() => {
     if (!form) return;
     const titleInput = form.querySelector('#taskTitleInput');
     const notesInput = form.querySelector('#taskNotesInput');
+    const startInput = form.querySelector('#taskStartSlider');
+    const durationInput = form.querySelector('#taskDurationSlider');
     composerState = {
       ...composerState,
       title: titleInput ? titleInput.value : composerState.title,
       notes: notesInput ? notesInput.value : composerState.notes,
+      startTime: startInput ? timeFromMinutes(Number(startInput.value)) : composerState.startTime,
+      durationMinutes: durationInput ? durationInput.value : composerState.durationMinutes,
     };
   }
 
@@ -602,36 +995,23 @@ window.TabOutTasks = (() => {
     }
   }
 
-  function focusById(id, selectionStart = null, selectionEnd = null) {
-    const input = document.getElementById(id);
-    if (!input) return;
-    input.focus();
-    if (
-      selectionStart !== null &&
-      typeof input.setSelectionRange === 'function'
-    ) {
-      input.setSelectionRange(selectionStart, selectionEnd ?? selectionStart);
-    }
+  async function rerenderTasksAndCalendar() {
+    await renderTasksDashboard();
+    await renderCalendar();
   }
 
   async function handleTaskAction(actionEl) {
     if (!actionEl) return false;
     const action = actionEl.dataset.action;
 
-    if (action === 'open-completed-tasks') {
-      return openCompletedTasksModal();
-    }
-
-    if (action === 'close-completed-tasks') {
-      return closeCompletedTasksModal();
-    }
+    if (action === 'open-completed-tasks') return openCompletedTasksModal();
+    if (action === 'close-completed-tasks') return closeCompletedTasksModal();
 
     if (action === 'restore-task') {
       const taskId = actionEl.dataset.taskId;
       if (!taskId) return false;
       await restoreTask(taskId);
-      await renderTasksDashboard();
-      await renderCalendar();
+      await rerenderTasksAndCalendar();
       await renderCompletedTasksModal();
       return true;
     }
@@ -640,14 +1020,13 @@ window.TabOutTasks = (() => {
       const taskId = actionEl.dataset.taskId;
       if (!taskId) return false;
       await deleteTask(taskId);
-      await renderTasksDashboard();
-      await renderCalendar();
+      await rerenderTasksAndCalendar();
       await renderCompletedTasksModal();
       return true;
     }
 
     if (action === 'open-task-composer') {
-      resetComposer('create');
+      resetComposer('create', { dueDate: selectedDate });
       await renderTasksDashboard();
       focusTaskTitle();
       return true;
@@ -676,8 +1055,7 @@ window.TabOutTasks = (() => {
       if (!isEditingCompletedTask) syncComposerFromDom();
       await completeTask(taskId);
       if (isEditingCompletedTask) resetComposer();
-      await renderTasksDashboard();
-      await renderCalendar();
+      await rerenderTasksAndCalendar();
       return true;
     }
 
@@ -701,19 +1079,61 @@ window.TabOutTasks = (() => {
       return true;
     }
 
-    if (action === 'toggle-calendar-day') {
-      const dayEl = actionEl.closest('.calendar-day') || actionEl;
-      const shouldOpen = !dayEl.classList.contains('popover-open');
-      const calendarRoot = dayEl.closest('.calendar-root') || document;
-      calendarRoot.querySelectorAll('.calendar-day.popover-open').forEach(openDay => {
-        if (openDay === dayEl) return;
-        openDay.classList.remove('popover-open');
-        const openTrigger = openDay.querySelector('[data-action="toggle-calendar-day"]');
-        if (openTrigger?.hasAttribute('aria-expanded')) openTrigger.setAttribute('aria-expanded', 'false');
+    if (action === 'select-calendar-day' || action === 'toggle-calendar-day') {
+      const date = actionEl.dataset.date || '';
+      if (TabOutShared.isValidDateString(date)) selectedDate = date;
+      await rerenderTasksAndCalendar();
+      return true;
+    }
+
+    if (action === 'toggle-task-tab-picker') {
+      const taskId = actionEl.dataset.taskId || '';
+      tabPickerTaskId = tabPickerTaskId === taskId ? '' : taskId;
+      await renderTasksDashboard();
+      return true;
+    }
+
+    if (action === 'attach-tab-to-task') {
+      const taskId = actionEl.dataset.taskId;
+      if (!taskId) return false;
+      await attachTabToTask(taskId, {
+        tabId: Number(actionEl.dataset.tabId),
+        windowId: Number(actionEl.dataset.windowId),
+        url: actionEl.dataset.tabUrl || '',
+        title: actionEl.dataset.tabTitle || actionEl.dataset.tabUrl || '',
+        favIconUrl: actionEl.dataset.faviconUrl || '',
       });
-      dayEl.classList.toggle('popover-open', shouldOpen);
-      if (actionEl.hasAttribute('aria-expanded')) {
-        actionEl.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+      tabPickerTaskId = '';
+      await renderTasksDashboard();
+      return true;
+    }
+
+    if (action === 'detach-task-tab') {
+      const taskId = actionEl.dataset.taskId;
+      const url = actionEl.dataset.tabUrl;
+      if (!taskId || !url) return false;
+      await detachTabFromTask(taskId, url);
+      await renderTasksDashboard();
+      return true;
+    }
+
+    if (action === 'open-task-workspace') {
+      const taskId = actionEl.dataset.taskId;
+      if (!taskId) return false;
+      await openTaskWorkspace(taskId);
+      return true;
+    }
+
+    if (action === 'focus-linked-tab') {
+      const url = actionEl.dataset.tabUrl;
+      if (!url) return false;
+      const allTabs = await chrome.tabs.query({});
+      const match = allTabs.find(tab => tab.url === url);
+      if (match) {
+        await chrome.tabs.update(match.id, { active: true });
+        await chrome.windows.update(match.windowId, { focused: true });
+      } else {
+        await chrome.tabs.create({ url, active: true });
       }
       return true;
     }
@@ -789,6 +1209,13 @@ window.TabOutTasks = (() => {
       return true;
     }
 
+    if (action === 'set-task-start-now') {
+      syncComposerFromDom();
+      composerState.startTime = timeFromMinutes(currentRoundedStartMinutes());
+      await renderTasksDashboard();
+      return true;
+    }
+
     return false;
   }
 
@@ -800,13 +1227,13 @@ window.TabOutTasks = (() => {
     const form = event.target;
     const titleInput = form.querySelector('#taskTitleInput');
     const notesInput = form.querySelector('#taskNotesInput');
+    const startInput = form.querySelector('#taskStartSlider');
+    const durationInput = form.querySelector('#taskDurationSlider');
     const errorEl = form.querySelector('#taskComposerError');
 
     try {
       const visibleDateInput = String(dateInput || '').trim();
-      if (visibleDateInput && !TabOutShared.isValidDateString(visibleDateInput)) {
-        throw new Error('Use YYYY-MM-DD.');
-      }
+      if (visibleDateInput && !TabOutShared.isValidDateString(visibleDateInput)) throw new Error('Use YYYY-MM-DD.');
       if (visibleDateInput) composerState.dueDate = visibleDateInput;
       await saveTask({
         id: composerState.mode === 'edit' ? composerState.taskId : undefined,
@@ -814,10 +1241,11 @@ window.TabOutTasks = (() => {
         notes: notesInput ? notesInput.value : '',
         tagId: composerState.tagId,
         dueDate: composerState.dueDate,
+        startTime: startInput ? timeFromMinutes(Number(startInput.value)) : '',
+        durationMinutes: durationInput ? durationInput.value : 60,
       });
       resetComposer();
-      await renderTasksDashboard();
-      await renderCalendar();
+      await rerenderTasksAndCalendar();
     } catch (err) {
       if (errorEl) {
         errorEl.textContent = err.message || 'Could not save task.';
@@ -855,8 +1283,41 @@ window.TabOutTasks = (() => {
       return true;
     }
 
+    if (target.id === 'taskStartSlider') {
+      composerState.startTime = timeFromMinutes(Number(target.value));
+      const label = document.getElementById('taskStartLabel');
+      if (label) label.textContent = composerState.startTime;
+      return true;
+    }
+
+    if (target.id === 'taskDurationSlider') {
+      composerState.durationMinutes = normalizeDuration(target.value);
+      const label = document.getElementById('taskDurationLabel');
+      if (label) label.textContent = formatMinutes(composerState.durationMinutes);
+      return true;
+    }
+
     return false;
   }
+
+  function handleTaskWheel(event) {
+    const slider = event.target?.closest?.('#taskStartSlider, #taskDurationSlider');
+    if (!slider) return;
+
+    event.preventDefault();
+    const min = Number(slider.min || 0);
+    const max = Number(slider.max || 100);
+    const step = Number(slider.step || 1);
+    const current = Number(slider.value || min);
+    const direction = event.deltaY > 0 ? 1 : -1;
+    const next = Math.max(min, Math.min(max, current + direction * step));
+    if (next === current) return;
+
+    slider.value = String(next);
+    handleTaskInput({ target: slider });
+  }
+
+  document.addEventListener('wheel', handleTaskWheel, { passive: false });
 
   return {
     TAG_COLORS,
