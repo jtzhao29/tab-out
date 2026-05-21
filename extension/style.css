@@ -2973,16 +2973,18 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .missions {
-  columns: auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 8px;
+  columns: 300px;
+  column-gap: 14px;
+  display: block;
   margin-bottom: 0;
 }
 
 .mission-card {
-  margin-bottom: 0;
-  padding: 11px 11px 10px;
+  break-inside: avoid;
+  display: inline-flex;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 15px 17px;
 }
 
 .tab-group-card {
@@ -3055,25 +3057,36 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .mission-top {
-  gap: 7px;
+  gap: 9px;
+  margin-bottom: 8px;
 }
 
 .mission-name {
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .open-tabs-badge {
-  font-size: 9px;
-  padding: 2px 6px;
+  font-size: 10px;
+  padding: 2px 8px;
 }
 
 .page-chip {
-  font-size: 11px;
-  padding: 6px 2px;
+  align-items: flex-start;
+  font-size: 13px;
+  padding: 8px 4px;
+}
+
+.page-chip .chip-favicon {
+  margin-top: 2px;
+}
+
+.chip-text {
+  line-height: 1.38;
 }
 
 .actions {
   flex-wrap: wrap;
+  margin-top: 10px;
 }
 
 .tasks-hero {
