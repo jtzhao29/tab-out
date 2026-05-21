@@ -48,7 +48,7 @@ This is a pure Chrome extension. There is no Node.js setup and no server to star
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/FDULeolu/tab-out-dashboard.git
+   git clone https://github.com/jtzhao29/tab-out.git
    cd tab-out-dashboard
    ```
 
